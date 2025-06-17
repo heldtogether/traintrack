@@ -1,0 +1,5 @@
+commands:
+  - name: Tests
+    exec: go test -count=1 ./...
+    glob: "**/*.go"
+    cwd: .
