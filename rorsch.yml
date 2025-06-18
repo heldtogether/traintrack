@@ -1,10 +1,15 @@
 commands:
-  - name: Tests
+  - name: Backplane Tests
     exec: go test -count=1 ./...
     glob: "**/*.go"
     cwd: ./backplane/
 
-  - name: Server
+  - name: Backplane Server
     exec: go run ./...
     glob: "**/*.go"
     cwd: ./backplane/
+
+  - name: Python SDK Tests
+    exec: pytest
+    glob: "**/*.py"
+    cwd: ./python-sdk/
