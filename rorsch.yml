@@ -2,9 +2,9 @@ commands:
   - name: Tests
     exec: go test -count=1 ./...
     glob: "**/*.go"
-    cwd: .
+    cwd: ./backplane/
 
   - name: Server
     exec: go run ./...
     glob: "**/*.go"
-    cwd: .
+    cwd: ./backplane/
