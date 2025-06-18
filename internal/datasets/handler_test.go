@@ -55,13 +55,13 @@ func TestRouter(t *testing.T) {
 		{
 			name:           "POST success",
 			method:         http.MethodPost,
-			body:           `{"id": ""}`,
+			body:           `{"id": "", "name": "name", "parent": null, "version": "version", "description": "description"}`,
 			listDatasetsFn: nil,
 			createDatasetFn: func(r *Dataset) (*Dataset, error) {
-				return &Dataset{ID: "123"}, nil
+				return &Dataset{ID: "123", Name: "name", Parent: nil, Version: "version", Description: "description"}, nil
 			},
 			expectedStatus:   http.StatusCreated,
-			expectedContains: `{"id": "123", "name": "", "parent": null, "version": "", "description": ""}`,
+			expectedContains: `{"id": "123", "name": "name", "parent": null, "version": "version", "description": "description"}`,
 		},
 		{
 			name:           "POST failure - unparseable request",
@@ -75,9 +75,24 @@ func TestRouter(t *testing.T) {
 			expectedContains: `{"code": 400, "error": "Failed to create dataset", "reason": "could not parse body: EOF"}`,
 		},
 		{
-			name:           "POST failure - service failed",
+			name:           "POST failure - failed validation",
 			method:         http.MethodPost,
 			body:           `{"id": ""}`,
+			listDatasetsFn: nil,
+			createDatasetFn: func(r *Dataset) (*Dataset, error) {
+				return nil, errors.New("bad request")
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedContains: `{"code": 400, "error": "Failed to create dataset", "reason": "bad input", "details": {
+				"name": "name is a required field",
+				"description": "description is a required field",
+				"version": "version is a required field"
+			}}`,
+		},
+		{
+			name:           "POST failure - service failed",
+			method:         http.MethodPost,
+			body:           `{"id": "", "name": "name", "parent": null, "version":"version", "description":"description"}`,
 			listDatasetsFn: nil,
 			createDatasetFn: func(r *Dataset) (*Dataset, error) {
 				return nil, errors.New("boom")
@@ -111,7 +126,7 @@ func TestRouter(t *testing.T) {
 				bodyReader = strings.NewReader(tc.body)
 			}
 
-			req := httptest.NewRequest(tc.method, "/roles", bodyReader)
+			req := httptest.NewRequest(tc.method, "/datasets", bodyReader)
 			rr := httptest.NewRecorder()
 
 			handler.Datasets(rr, req)

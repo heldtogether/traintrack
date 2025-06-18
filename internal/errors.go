@@ -4,4 +4,5 @@ type Error struct {
 	Code    int    `json:"code"`
 	Message string `json:"error"`
 	Reason  string `json:"reason"`
+	Details any    `json:"details,omitempty"`
 }
