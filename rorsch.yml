@@ -3,3 +3,8 @@ commands:
     exec: go test -count=1 ./...
     glob: "**/*.go"
     cwd: .
+
+  - name: Server
+    exec: go run ./...
+    glob: "**/*.go"
+    cwd: .
