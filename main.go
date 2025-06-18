@@ -61,7 +61,6 @@ func Run() error {
 		log.Println("migrations applied successfully")
 	}
 
-	router := router.Setup()
+	router := router.Setup(conn)
 	return http.ListenAndServe(":8080", router)
-
 }

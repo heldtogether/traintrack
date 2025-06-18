@@ -7,7 +7,7 @@ import (
 )
 
 func TestSetup(t *testing.T) {
-	router := Setup()
+	router := Setup(nil)
 
 	req, _ := http.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
