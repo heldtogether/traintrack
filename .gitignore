@@ -1,5 +1,8 @@
 .DS_Store
 
+# Used for testing local filesystem provider
+backplane/files/
+
 #### Go
 
 # Binaries for programs and plugins

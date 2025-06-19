@@ -10,6 +10,6 @@ commands:
     cwd: ./backplane/
 
   - name: Python SDK Tests
-    exec: pytest
+    exec: pytest 
     glob: "**/*.py"
     cwd: ./python-sdk/
