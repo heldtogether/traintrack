@@ -24,6 +24,61 @@ Traintrack is a modular MLOps platform designed to manage and monitor the full l
 
 ![Architecture diagram](public/assets/architecture.png)
 
+As the backplane can plug in a number of storage providers, the SDK routes all data through the API. To ensure atomicity, there is a two step process for creating a dataset. 
+
+1) Uploads the artefacts (csv, text, binary) to a temporary staging location
+2) Create a dataset and move the artefacts to their forever home.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant SDK
+    participant API
+    participant Service
+    participant DB
+    participant Storage
+
+    User->>SDK: dataset.save()
+    loop For each artefact
+        SDK->>SDK: Marshal artefact to temp file
+        SDK->>API: POST /uploads (with file)
+        API->>Storage: Store file in staging area
+        Storage-->>API: OK
+        API-->>SDK: Return upload ID
+    end
+
+    SDK->>API: POST /datasets (with upload IDs)
+    API->>Service: Create(dataset)
+
+    Note over Service,DB: Begin atomic transaction
+    Service->>DB: Begin transaction
+    DB-->>Service: Transaction started
+
+    Service->>DB: Create dataset record
+    DB-->>Service: Dataset created
+
+    loop For each upload ID
+        Service->>DB: Get upload by ID
+        DB-->>Service: Upload with file refs
+
+        loop For each file
+            Service->>Storage: MoveFile(origPath -> newPath)
+            Storage-->>Service: OK
+        end
+
+        Service->>DB: Update upload with new paths
+        DB-->>Service: OK
+    end
+
+    Service->>DB: Commit transaction
+    DB-->>Service: OK
+    Note over Service,DB: End atomic transaction
+
+    Service-->>API: Return created dataset
+    API-->>SDK: Return created dataset
+    SDK-->>User: Return new Dataset instance
+```
+
 ## 🐍 Python SDK Usage
 
 Install: 
