@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/heldtogether/traintrack/internal/uploads"
@@ -242,5 +243,27 @@ func TestService_Create(t *testing.T) {
 				t.Errorf("called steps = %v, want = %v", called, tc.wantCalled)
 			}
 		})
+	}
+}
+
+func TestService_List(t *testing.T) {
+	want := []*Dataset{
+		{ID: "1", Name: "Training Set"},
+		{ID: "2", Name: "Validation Set"},
+	}
+
+	mockRepo := &MockDatasetsRepo{
+		ListFunc: func() ([]*Dataset, error) {
+			return want, nil
+		},
+	}
+	svc := &Service{DatasetsRepo: mockRepo}
+
+	got, err := svc.List()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
