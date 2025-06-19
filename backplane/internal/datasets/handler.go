@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,17 +18,22 @@ import (
 
 type Repo interface {
 	List() ([]*Dataset, error)
-	Create(d *Dataset) (*Dataset, error)
+	// Create(d *Dataset) (*Dataset, error)
+}
+
+type Serv interface {
+	Create(ctx context.Context, d *Dataset) (*Dataset, error)
 }
 
 type Handler struct {
-	repo Repo
+	repo    Repo
+	service Serv
 
 	validator *validator.Validate
 	trans     ut.Translator
 }
 
-func NewHandler(r Repo) *Handler {
+func NewHandler(r Repo, s Serv) *Handler {
 	validator := validator.New(validator.WithRequiredStructEnabled())
 	validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tag := fld.Tag.Get("json")
@@ -45,6 +51,7 @@ func NewHandler(r Repo) *Handler {
 
 	return &Handler{
 		repo:      r,
+		service:   s,
 		validator: validator,
 		trans:     trans,
 	}
@@ -96,7 +103,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := h.repo.Create(d)
+	created, err := h.service.Create(r.Context(), d)
 	if err != nil {
 		log.Printf("failed to create dataset: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)

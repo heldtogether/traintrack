@@ -77,3 +77,38 @@ func TestFileSystemStorage_SaveFile_FileCreationFails(t *testing.T) {
 		t.Fatal("expected file creation error due to read-only directory, got nil")
 	}
 }
+
+func TestFileSystemStorage_MoveFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	storage := &FileSystemStorage{BaseDir: tmpDir}
+
+	srcPath := "original/location/file.txt"
+	dstPath := "new/location/file.txt"
+	content := []byte("move me")
+
+	err := storage.SaveFile(srcPath, newMockMultipartFile(content))
+	if err != nil {
+		t.Fatalf("SaveFile failed: %v", err)
+	}
+
+	err = storage.MoveFile(srcPath, dstPath)
+	if err != nil {
+		t.Fatalf("MoveFile failed: %v", err)
+	}
+
+	fullDstPath := filepath.Join(tmpDir, dstPath)
+	data, err := os.ReadFile(fullDstPath)
+	if err != nil {
+		t.Fatalf("failed to read moved file: %v", err)
+	}
+
+	if string(data) != string(content) {
+		t.Errorf("file content mismatch after move: got %q, want %q", string(data), string(content))
+	}
+
+	fullSrcPath := filepath.Join(tmpDir, srcPath)
+	if _, err := os.Stat(fullSrcPath); !os.IsNotExist(err) {
+		t.Errorf("source file still exists after move: %v", err)
+	}
+}

@@ -28,8 +28,12 @@ func NewRepository(conn Querier) *Repository {
 }
 
 func (r *Repository) Create(d *Dataset) (*Dataset, error) {
+	return r.CreateWithQuerier(r.conn, d)
+}
+
+func (r *Repository) CreateWithQuerier(conn Querier, d *Dataset) (*Dataset, error) {
 	query := CreateQuery
-	row := r.conn.QueryRow(
+	row := conn.QueryRow(
 		context.Background(),
 		query,
 		d.Name,

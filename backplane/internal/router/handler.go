@@ -17,14 +17,25 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 		fmt.Fprint(w, "OK")
 	})
 
-	datasetsHandler := datasets.NewHandler(datasets.NewRepository(conn))
-	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
+	datasetsRepo := datasets.NewRepository(conn)
+	uploadsRepo := uploads.NewRepository(conn)
 
 	fs := &uploads.FileSystemStorage{
 		BaseDir: "./files/",
 	}
 
-	uploadsHandler := uploads.NewHandler(uploads.NewRepository(conn), fs, nil)
+	datasetsSvc := &datasets.Service{
+		DatasetsRepo: datasetsRepo,
+		UploadsRepo:  uploadsRepo,
+		Storage:      fs,
+		DB:           conn,
+	}
+
+	datasetsHandler := datasets.NewHandler(datasetsRepo, datasetsSvc)
+	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
+
+	
+	uploadsHandler := uploads.NewHandler(uploadsRepo, fs, nil)
 	mux.HandleFunc("/uploads", uploadsHandler.Uploads)
 
 	loggedMux := loggingMiddleware(mux)

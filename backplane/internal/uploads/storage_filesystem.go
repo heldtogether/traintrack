@@ -27,3 +27,14 @@ func (f *FileSystemStorage) SaveFile(dstPath string, file multipart.File) error 
 	_, err = io.Copy(dst, file)
 	return err
 }
+
+func (f *FileSystemStorage) MoveFile(srcPath string, dstPath string) error {
+	fullSrcPath := filepath.Join(f.BaseDir, srcPath)
+	fullDstPath := filepath.Join(f.BaseDir, dstPath)
+
+	if err := os.MkdirAll(filepath.Dir(fullDstPath), 0755); err != nil {
+		return err
+	}
+
+	return os.Rename(fullSrcPath, fullDstPath)
+}

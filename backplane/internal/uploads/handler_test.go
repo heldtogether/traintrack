@@ -56,7 +56,7 @@ func TestUploadsHandler(t *testing.T) {
 		name             string
 		method           string
 		requestSetup     func(t *testing.T) *http.Request
-		createUploadFn   func(upload *Upload) (*Upload, error)  
+		createUploadFn   func(upload *Upload) (*Upload, error)
 		saveFileFn       func(dst string, file multipart.File) error
 		expectedStatus   int
 		expectedContains string
@@ -159,9 +159,9 @@ func TestUploadsHandler(t *testing.T) {
 
 			handler := NewHandler(
 				&mockRepo{
-					createFunc: tc.createUploadFn, 
+					createFunc: tc.createUploadFn,
 				},
-				storage, 
+				storage,
 				func() string {
 					return "mock-id"
 				},

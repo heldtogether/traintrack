@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,16 +13,19 @@ import (
 )
 
 type mockRepository struct {
-	ListDatasetsFn  func() ([]*Dataset, error)
-	CreateDatasetFn func(d *Dataset) (*Dataset, error)
+	ListDatasetsFn func() ([]*Dataset, error)
 }
 
 func (m *mockRepository) List() ([]*Dataset, error) {
 	return m.ListDatasetsFn()
 }
 
-func (m *mockRepository) Create(d *Dataset) (*Dataset, error) {
-	return m.CreateDatasetFn(d)
+type mockService struct {
+	CreateFn func(ctx context.Context, d *Dataset) (*Dataset, error)
+}
+
+func (m *mockService) Create(ctx context.Context, d *Dataset) (*Dataset, error) {
+	return m.CreateFn(ctx, d)
 }
 
 func TestRouter(t *testing.T) {
@@ -30,7 +34,7 @@ func TestRouter(t *testing.T) {
 		method           string
 		body             string
 		listDatasetsFn   func() ([]*Dataset, error)
-		createDatasetFn  func(d *Dataset) (*Dataset, error)
+		createDatasetFn  func(ctx context.Context, d *Dataset) (*Dataset, error)
 		expectedStatus   int
 		expectedContains string
 	}{
@@ -57,7 +61,7 @@ func TestRouter(t *testing.T) {
 			method:         http.MethodPost,
 			body:           `{"id": "", "name": "name", "parent": null, "version": "version", "description": "description"}`,
 			listDatasetsFn: nil,
-			createDatasetFn: func(r *Dataset) (*Dataset, error) {
+			createDatasetFn: func(_ context.Context, r *Dataset) (*Dataset, error) {
 				return &Dataset{ID: "123", Name: "name", Parent: nil, Version: "version", Description: "description"}, nil
 			},
 			expectedStatus:   http.StatusCreated,
@@ -68,7 +72,7 @@ func TestRouter(t *testing.T) {
 			method:         http.MethodPost,
 			body:           ``,
 			listDatasetsFn: nil,
-			createDatasetFn: func(r *Dataset) (*Dataset, error) {
+			createDatasetFn: func(_ context.Context, r *Dataset) (*Dataset, error) {
 				return nil, errors.New("bad request")
 			},
 			expectedStatus:   http.StatusBadRequest,
@@ -79,7 +83,7 @@ func TestRouter(t *testing.T) {
 			method:         http.MethodPost,
 			body:           `{"id": ""}`,
 			listDatasetsFn: nil,
-			createDatasetFn: func(r *Dataset) (*Dataset, error) {
+			createDatasetFn: func(_ context.Context, r *Dataset) (*Dataset, error) {
 				return nil, errors.New("bad request")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -94,7 +98,7 @@ func TestRouter(t *testing.T) {
 			method:         http.MethodPost,
 			body:           `{"id": "", "name": "name", "parent": null, "version":"version", "description":"description"}`,
 			listDatasetsFn: nil,
-			createDatasetFn: func(r *Dataset) (*Dataset, error) {
+			createDatasetFn: func(_ context.Context, r *Dataset) (*Dataset, error) {
 				return nil, errors.New("boom")
 			},
 			expectedStatus:   http.StatusInternalServerError,
@@ -116,10 +120,12 @@ func TestRouter(t *testing.T) {
 			t.Parallel()
 
 			mockRepository := &mockRepository{
-				ListDatasetsFn:  tc.listDatasetsFn,
-				CreateDatasetFn: tc.createDatasetFn,
+				ListDatasetsFn: tc.listDatasetsFn,
 			}
-			handler := NewHandler(mockRepository)
+			mockService := &mockService{
+				CreateFn: tc.createDatasetFn,
+			}
+			handler := NewHandler(mockRepository, mockService)
 
 			var bodyReader io.Reader
 			if tc.body != "" {

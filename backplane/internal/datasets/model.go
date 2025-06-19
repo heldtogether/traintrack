@@ -6,4 +6,6 @@ type Dataset struct {
 	Parent      *string `json:"parent"`
 	Version     string  `json:"version" validate:"required"`
 	Description string  `json:"description" validate:"required"`
+
+	UploadIds []string `json:"artefacts,omitempty"`
 }
