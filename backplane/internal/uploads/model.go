@@ -9,7 +9,7 @@ type Provider string
 
 const (
 	ProviderUnknown    Provider = "unknown"
-	ProviderFileSystem          = "filesystem"
+	ProviderFileSystem Provider = "filesystem"
 )
 
 type FileRef struct {
