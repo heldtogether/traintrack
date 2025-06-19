@@ -12,20 +12,17 @@ import (
 	"testing"
 )
 
-type mockRepository struct {
-	ListDatasetsFn func() ([]*Dataset, error)
-}
-
-func (m *mockRepository) List() ([]*Dataset, error) {
-	return m.ListDatasetsFn()
-}
-
 type mockService struct {
 	CreateFn func(ctx context.Context, d *Dataset) (*Dataset, error)
+	ListFn   func() ([]*Dataset, error)
 }
 
 func (m *mockService) Create(ctx context.Context, d *Dataset) (*Dataset, error) {
 	return m.CreateFn(ctx, d)
+}
+
+func (m *mockService) List() ([]*Dataset, error) {
+	return m.ListFn()
 }
 
 func TestRouter(t *testing.T) {
@@ -119,13 +116,11 @@ func TestRouter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockRepository := &mockRepository{
-				ListDatasetsFn: tc.listDatasetsFn,
-			}
 			mockService := &mockService{
 				CreateFn: tc.createDatasetFn,
+				ListFn:   tc.listDatasetsFn,
 			}
-			handler := NewHandler(mockRepository, mockService)
+			handler := NewHandler(mockService)
 
 			var bodyReader io.Reader
 			if tc.body != "" {

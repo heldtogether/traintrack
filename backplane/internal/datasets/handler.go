@@ -16,24 +16,19 @@ import (
 	"github.com/heldtogether/traintrack/internal"
 )
 
-type Repo interface {
-	List() ([]*Dataset, error)
-	// Create(d *Dataset) (*Dataset, error)
-}
-
 type Serv interface {
 	Create(ctx context.Context, d *Dataset) (*Dataset, error)
+	List() ([]*Dataset, error)
 }
 
 type Handler struct {
-	repo    Repo
 	service Serv
 
 	validator *validator.Validate
 	trans     ut.Translator
 }
 
-func NewHandler(r Repo, s Serv) *Handler {
+func NewHandler(s Serv) *Handler {
 	validator := validator.New(validator.WithRequiredStructEnabled())
 	validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tag := fld.Tag.Get("json")
@@ -50,7 +45,6 @@ func NewHandler(r Repo, s Serv) *Handler {
 	en_translations.RegisterDefaultTranslations(validator, trans)
 
 	return &Handler{
-		repo:      r,
 		service:   s,
 		validator: validator,
 		trans:     trans,
@@ -119,7 +113,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	ds, err := h.repo.List()
+	ds, err := h.service.List()
 	if err != nil {
 		log.Printf("failed to list datasets: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)

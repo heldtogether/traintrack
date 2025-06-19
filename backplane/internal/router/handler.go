@@ -31,7 +31,7 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 		DB:           conn,
 	}
 
-	datasetsHandler := datasets.NewHandler(datasetsRepo, datasetsSvc)
+	datasetsHandler := datasets.NewHandler(datasetsSvc)
 	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
 
 	

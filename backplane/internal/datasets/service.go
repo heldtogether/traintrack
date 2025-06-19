@@ -11,6 +11,7 @@ import (
 
 type DatasetRepo interface {
 	CreateWithQuerier(q Querier, d *Dataset) (*Dataset, error)
+	List() ([]*Dataset, error)
 }
 
 type UploadRepo interface {
@@ -66,8 +67,8 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		newFiles := make([]uploads.FileRef, len(upload.Files))
 		for i, file := range upload.Files {
 			origPath := filepath.Join(file.Path, file.FileName)
-			newPath := filepath.Join("datasets", created.ID, file.FileName)
-			if err := s.Storage.MoveFile(origPath, newPath); err != nil {
+			newPath := filepath.Join("datasets", created.ID)
+			if err := s.Storage.MoveFile(origPath, filepath.Join(newPath, file.FileName)); err != nil {
 				return nil, fmt.Errorf("move file %s: %w", file, err)
 			}
 			newFiles[i] = uploads.FileRef{
@@ -88,4 +89,8 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 	}
 
 	return created, nil
+}
+
+func (s *Service) List() ([]*Dataset, error) {
+	return s.DatasetsRepo.List()
 }

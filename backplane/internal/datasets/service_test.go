@@ -26,10 +26,15 @@ func (m *MockUploadsRepo) MoveWithQuerier(_ uploads.Querier, u *uploads.Upload) 
 
 type MockDatasetsRepo struct {
 	CreateFunc func(ctx context.Context, d *Dataset) (*Dataset, error)
+	ListFunc   func() ([]*Dataset, error)
 }
 
 func (m *MockDatasetsRepo) CreateWithQuerier(_ Querier, d *Dataset) (*Dataset, error) {
 	return m.CreateFunc(context.Background(), d)
+}
+
+func (m *MockDatasetsRepo) List() ([]*Dataset, error) {
+	return m.ListFunc()
 }
 
 type mockDB struct {
