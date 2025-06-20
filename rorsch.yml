@@ -5,7 +5,7 @@ commands:
     cwd: ./backplane/
 
   - name: Backplane Server
-    exec: go run ./...
+    exec: go run ./... serve
     glob: "**/*.go"
     cwd: ./backplane/
 
