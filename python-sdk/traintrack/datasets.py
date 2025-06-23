@@ -4,6 +4,7 @@ from .client import TraintrackClient
 import tempfile
 import pandas as pd
 import os
+import io
 
 class Dataset:
     def __init__(self, id, name, version, description, parent=None, artefacts=None):
@@ -17,42 +18,71 @@ class Dataset:
     def __repr__(self):
         return f"<Dataset {self.name}:{self.version}>"
 
-    def transform(self, name, description, version, transform_fn):
-        # new_df = transform_fn(df)
-        return Dataset(None, name, version, description, self.id)
+    def transform(self, name, description, version):
+        artefacts = {}
+        for n in self.artefacts:
+            artefacts[n] = self.get_artefact(n)
+        return Dataset(None, name, version, description, self.id, artefacts)
+  
+    def set_artefact(self, name, obj):
+        if not isinstance(obj, (pd.DataFrame, str, bytes)):
+            raise TypeError(f"Unsupported artefact type: {type(obj)}")
+        self.artefacts[name] = obj
+
+    def get_artefact(self, name):
+        if name not in self.artefacts:
+            raise KeyError(f"Artefact '{name}' not found in dataset")
+
+        upload_id = self.artefacts[name]
+        client = TraintrackClient()
+        resp = client.get(f"/uploads/{upload_id}/{name}")
+        resp.raise_for_status()
+
+        content = resp.content
+
+        content_disp = resp.headers.get("Content-Disposition", "")
+        filename = None
+        if "filename=" in content_disp:
+            filename = content_disp.split("filename=")[-1].strip('"')
+        else:
+            filename = name  # fallback if header is missing
+
+        ext = os.path.splitext(filename)[1].lower()
+
+        if ext == ".csv":
+            return pd.read_csv(io.BytesIO(content))
+        elif ext == ".txt":
+            return content.decode("utf-8")
+        else:
+            return content  # raw bytes
 
     def save(self, force=False):
         if self.id != None and force == False:
             raise Exception(
-                "datasets should be immutable but you're trying to modify an existing dataset")
+                    "datasets should be immutable but you're trying to modify an existing dataset")
         client = TraintrackClient()
 
-        upload_ids = []
+        upload_ids = {}
         for name, obj in self.artefacts.items():
             with self._marshal_artefact(obj) as file_path:
                 with open(file_path, "rb") as f:
                     ext = os.path.splitext(file_path)[1]
                     filename = f"{name}{ext}"
-                    upload_resp = client.post(f"/uploads", files={"files": (f"{filename}", f)})
+                    upload_resp = client.post(f"/uploads", files={name: (f"{filename}", f)})
                     upload_resp.raise_for_status()
                     upload_data = upload_resp.json()
-                    upload_ids.append(upload_data["id"])
+                    upload_ids[name] = upload_data["id"]
 
         data = {
-            "name": self.name,
-            "version": self.version,
-            "description": self.description,
-            "parent": self.parent,
-            "artefacts": upload_ids,
-        }
+                "name": self.name,
+                "version": self.version,
+                "description": self.description,
+                "parent": self.parent,
+                "artefacts": upload_ids,
+                }
         resp = client.post("/datasets", json=data)
         resp.raise_for_status()
         return Dataset(**resp.json())
-
-    def set_artefact(self, name, obj):
-        if not isinstance(obj, (pd.DataFrame, str, bytes)):
-            raise TypeError(f"Unsupported artefact type: {type(obj)}")
-        self.artefacts[name] = obj
 
     @contextlib.contextmanager
     def _marshal_artefact(self, obj):

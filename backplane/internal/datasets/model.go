@@ -7,5 +7,5 @@ type Dataset struct {
 	Version     string  `json:"version" validate:"required"`
 	Description string  `json:"description" validate:"required"`
 
-	UploadIds []string `json:"artefacts,omitempty"`
+	UploadIds map[string]string `json:"artefacts"`
 }

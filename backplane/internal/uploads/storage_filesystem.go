@@ -38,3 +38,8 @@ func (f *FileSystemStorage) MoveFile(srcPath string, dstPath string) error {
 
 	return os.Rename(fullSrcPath, fullDstPath)
 }
+
+func (f *FileSystemStorage) ReadFile(path string) ([]byte, error) {
+	fullPath := filepath.Join(f.BaseDir, path)
+	return os.ReadFile(fullPath)
+}

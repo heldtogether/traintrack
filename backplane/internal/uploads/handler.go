@@ -6,17 +6,21 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/heldtogether/traintrack/internal"
 )
 
 type Repo interface {
 	Create(u *Upload) (*Upload, error)
+	Get(id string) (*Upload, error)
 }
 
 type Storage interface {
 	SaveFile(dstPath string, file multipart.File) error
+	ReadFile(path string) ([]byte, error)
 }
 
 type UUIDGenerator func() string
@@ -54,6 +58,20 @@ func (h *Handler) Uploads(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.Get(w, r)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(&internal.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+			Reason:  "",
+		})
+	}
+}
+
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(32 << 20) // 32MB chunks
 	if err != nil {
@@ -68,23 +86,17 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	form := r.MultipartForm
-	files := form.File["files"]
-	if len(files) == 0 {
-		log.Printf("failed to create upload: no files uploaded")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(&internal.Error{
-			Code:    http.StatusBadRequest,
-			Message: "Failed to create upload",
-			Reason:  "no files uploaded",
-		})
-		return
-	}
 
 	uploadID := h.newUUID()
 	basePath := fmt.Sprintf("tmp/uploads/%s/", uploadID)
 
-	var fileRefs []FileRef
-	for _, fileHeader := range files {
+	fileRefs := make(map[string]FileRef)
+	for artefactName, fileHeaders := range form.File {
+		if len(fileHeaders) == 0 {
+			continue
+		}
+
+		fileHeader := fileHeaders[0]
 		file, err := fileHeader.Open()
 		if err != nil {
 			// this branch isn't tested as we don't expect
@@ -113,11 +125,22 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fileRefs = append(fileRefs, FileRef{
+		fileRefs[artefactName] = FileRef{
 			Provider: ProviderFileSystem,
 			FileName: fileHeader.Filename,
 			Path:     basePath,
+		}
+	}
+
+	if len(fileRefs) == 0 {
+		log.Printf("failed to create upload: no files uploaded")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(&internal.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Failed to create upload",
+			Reason:  "no files uploaded",
 		})
+		return
 	}
 
 	upload := &Upload{
@@ -138,4 +161,56 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(upload)
+}
+
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	uploadID := vars["id"]
+	filename := vars["filename"]
+
+	upload, err := h.repo.Get(uploadID)
+	if err != nil || upload == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(&internal.Error{
+			Code:    http.StatusNotFound,
+			Message: "Upload not found",
+			Reason:  err.Error(),
+		})
+		return
+	}
+
+	var filePath string
+	var fileName string
+
+	for name, file := range upload.Files {
+		if name == filename {
+			filePath = filepath.Join(file.Path, file.FileName)
+			fileName = file.FileName
+			break
+		}
+	}
+	if filePath == "" {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(&internal.Error{
+			Code:    http.StatusNotFound,
+			Message: "File not found",
+			Reason:  "unknown file",
+		})
+		return
+	}
+
+	content, err := h.storage.ReadFile(filePath)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(&internal.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Could not read file",
+			Reason:  err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	w.Write(content)
 }

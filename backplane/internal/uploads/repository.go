@@ -11,7 +11,7 @@ import (
 
 const (
 	CreateQuery = `INSERT INTO uploads (files) VALUES ($1) RETURNING id`
-	UpdateQuery = `UPDATE uploads SET files = $1 WHERE id = $2`
+	UpdateQuery = `UPDATE uploads SET files = $1, dataset_id = $2 WHERE id = $3`
 	GetQuery    = `SELECT id, files FROM uploads WHERE id = $1`
 )
 
@@ -56,6 +56,22 @@ func (r *Repository) Create(u *Upload) (*Upload, error) {
 	}, nil
 }
 
+func (r *Repository) Get(id string) (*Upload, error) {
+	query := GetQuery
+	row := r.conn.QueryRow(
+		context.Background(),
+		query,
+		id,
+	)
+
+	var upload Upload
+	if err := row.Scan(&upload.ID, &upload.Files); err != nil {
+		return nil, err
+	}
+
+	return &upload, nil
+}
+
 func (r *Repository) Move(u *Upload) error {
 	return r.MoveWithQuerier(r.conn, u)
 }
@@ -71,6 +87,7 @@ func (r *Repository) MoveWithQuerier(conn Querier, u *Upload) error {
 		context.Background(),
 		UpdateQuery,
 		filesJSON,
+		u.DatasetID,
 		u.ID,
 	)
 

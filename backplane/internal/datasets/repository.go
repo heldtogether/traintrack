@@ -9,7 +9,20 @@ import (
 
 const (
 	CreateQuery = `INSERT INTO datasets (name, parent, version, description) VALUES ($1, $2, $3, $4) RETURNING id`
-	ListQuery   = `SELECT id, name, parent, version, description FROM datasets`
+	ListQuery   = `SELECT 
+  d.id,
+  d.name,
+  d.parent,
+  d.version,
+  d.description,
+  COALESCE(
+    jsonb_object_agg(file_key, u.id) FILTER (WHERE file_key IS NOT NULL),
+    '{}'::jsonb
+  ) AS artefacts
+FROM datasets d
+LEFT JOIN uploads u ON u.dataset_id = d.id
+LEFT JOIN LATERAL jsonb_object_keys(u.files) AS file_key ON true
+GROUP BY d.id, d.name, d.parent, d.version, d.description;`
 )
 
 type Querier interface {
@@ -76,6 +89,7 @@ func (r *Repository) List() ([]*Dataset, error) {
 			&d.Parent,
 			&d.Version,
 			&d.Description,
+			&d.UploadIds,
 		); err != nil {
 			return nil, err
 		}

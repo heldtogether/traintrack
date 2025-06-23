@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 )
 
@@ -20,8 +21,8 @@ func TestCreate(t *testing.T) {
 
 	want := &Upload{
 		ID: "1",
-		Files: []FileRef{
-			{Provider: ProviderFileSystem, FileName: "test", Path: "/"},
+		Files: map[string]FileRef{
+			"artefact": {Provider: ProviderFileSystem, FileName: "test", Path: "/"},
 		},
 	}
 
@@ -40,8 +41,8 @@ func TestCreate(t *testing.T) {
 
 	got, err := service.Create(
 		&Upload{
-			Files: []FileRef{
-				{Provider: ProviderFileSystem, FileName: "test", Path: "/"},
+			Files: map[string]FileRef{
+				"artefact": {Provider: ProviderFileSystem, FileName: "test", Path: "/"},
 			},
 		})
 	if err != nil {
@@ -64,8 +65,8 @@ func TestCreate_ScanFails(t *testing.T) {
 	}
 	defer db.Close()
 
-	files := []FileRef{
-		{Provider: ProviderFileSystem, FileName: "test", Path: "/"},
+	files := map[string]FileRef{
+		"artefact": {Provider: ProviderFileSystem, FileName: "test", Path: "/"},
 	}
 	filesJSON, err := json.Marshal(files)
 	if err != nil {
@@ -93,9 +94,10 @@ func TestMove(t *testing.T) {
 
 	upload := &Upload{
 		ID: "1",
-		Files: []FileRef{
-			{Provider: ProviderFileSystem, FileName: "file", Path: "/"},
+		Files: map[string]FileRef{
+			"artefact": {Provider: ProviderFileSystem, FileName: "file", Path: "/"},
 		},
+		DatasetID: "d123",
 	}
 	filesJSON, err := json.Marshal(upload.Files)
 	if err != nil {
@@ -103,7 +105,7 @@ func TestMove(t *testing.T) {
 	}
 
 	db.ExpectExec(regexp.QuoteMeta(UpdateQuery)).
-		WithArgs(filesJSON, upload.ID).
+		WithArgs(filesJSON, upload.DatasetID, upload.ID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRepository(db)
@@ -127,8 +129,8 @@ func TestGetByIDWithQuerier(t *testing.T) {
 
 	want := &Upload{
 		ID: "123",
-		Files: []FileRef{
-			{Provider: ProviderFileSystem, FileName: "report.pdf", Path: "/docs"},
+		Files: map[string]FileRef{
+			"artefact": {Provider: ProviderFileSystem, FileName: "report.pdf", Path: "/docs"},
 		},
 	}
 	filesJSON, err := json.Marshal(want.Files)
@@ -194,5 +196,75 @@ func TestGetByIDWithQuerier_UnmarshalError(t *testing.T) {
 	_, err = repo.GetByIDWithQuerier(db, "123")
 	if err == nil || !strings.Contains(err.Error(), "unmarshal") {
 		t.Fatalf("expected unmarshal error, got %v", err)
+	}
+}
+
+func TestRepository_Get_Success(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	expectedID := "abc-123"
+	expectedFiles := map[string]FileRef{
+		"artefact": {Provider: "filesystem", FileName: "file1.txt", Path: "uploads/abc-123"},
+	}
+
+	rows := pgxmock.NewRows([]string{"id", "files"}).
+		AddRow(expectedID, expectedFiles)
+
+	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+		WithArgs(expectedID).
+		WillReturnRows(rows)
+
+	repo := &Repository{conn: db}
+	upload, err := repo.Get(expectedID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if upload.ID != expectedID {
+		t.Errorf("expected ID %s, got %s", expectedID, upload.ID)
+	}
+
+	if !reflect.DeepEqual(upload.Files, expectedFiles) {
+		t.Errorf("expected Files %+v, got %+v", expectedFiles, upload.Files)
+	}
+}
+
+func TestRepository_Get_ScanError(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+		WithArgs("999").
+		WillReturnError(errors.New("scan fail"))
+
+	repo := &Repository{conn: db}
+	_, err = repo.Get("999")
+	if err == nil || !strings.Contains(err.Error(), "scan fail") {
+		t.Fatalf("expected scan fail error, got %v", err)
+	}
+}
+
+func TestRepository_Get_NotFound(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+		WithArgs("123").
+		WillReturnError(pgx.ErrNoRows)
+
+	repo := &Repository{conn: db}
+	_, err = repo.Get("123")
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("expected pgx.ErrNoRows, got %v", err)
 	}
 }

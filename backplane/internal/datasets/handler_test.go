@@ -39,10 +39,10 @@ func TestRouter(t *testing.T) {
 			name:   "GET success",
 			method: http.MethodGet,
 			listDatasetsFn: func() ([]*Dataset, error) {
-				return []*Dataset{{ID: "1"}}, nil
+				return []*Dataset{{ID: "1", UploadIds: map[string]string{"file1": "abc"}}}, nil
 			},
 			expectedStatus:   http.StatusOK,
-			expectedContains: `[{"id": "1", "name": "", "parent": null, "version":"", "description":""}]`,
+			expectedContains: `[{"id": "1", "name": "", "parent": null, "version":"", "description":"", "artefacts": {"file1": "abc"}}]`,
 		},
 		{
 			name:   "GET failure",
@@ -59,10 +59,10 @@ func TestRouter(t *testing.T) {
 			body:           `{"id": "", "name": "name", "parent": null, "version": "version", "description": "description"}`,
 			listDatasetsFn: nil,
 			createDatasetFn: func(_ context.Context, r *Dataset) (*Dataset, error) {
-				return &Dataset{ID: "123", Name: "name", Parent: nil, Version: "version", Description: "description"}, nil
+				return &Dataset{ID: "123", Name: "name", Parent: nil, Version: "version", Description: "description", UploadIds: map[string]string{}}, nil
 			},
 			expectedStatus:   http.StatusCreated,
-			expectedContains: `{"id": "123", "name": "name", "parent": null, "version": "version", "description": "description"}`,
+			expectedContains: `{"id": "123", "name": "name", "parent": null, "version": "version", "description": "description", "artefacts": {}}`,
 		},
 		{
 			name:           "POST failure - unparseable request",

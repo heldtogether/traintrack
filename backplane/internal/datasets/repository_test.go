@@ -18,8 +18,8 @@ func TestList(t *testing.T) {
 	}
 	defer db.Close()
 
-	rows := db.NewRows([]string{"id", "name", "parent", "version", "description"}).
-		AddRow("1", "", nil, "", "")
+	rows := db.NewRows([]string{"id", "name", "parent", "version", "description", "artefacts"}).
+		AddRow("1", "", nil, "", "", make(map[string]string))
 
 	db.ExpectQuery(
 		regexp.QuoteMeta(ListQuery),

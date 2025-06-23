@@ -1,8 +1,9 @@
 package uploads
 
 type Upload struct {
-	ID    string    `json:"id"`
-	Files []FileRef `json:"files"`
+	ID        string             `json:"id"`
+	Files     map[string]FileRef `json:"files"`
+	DatasetID string             `json:"dataset_id,omitempty"`
 }
 
 type Provider string

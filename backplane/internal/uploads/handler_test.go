@@ -11,10 +11,13 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gorilla/mux"
 )
 
 type mockRepo struct {
 	createFunc func(upload *Upload) (*Upload, error)
+	getFunc    func(id string) (*Upload, error)
 }
 
 func (m *mockRepo) Create(upload *Upload) (*Upload, error) {
@@ -24,12 +27,24 @@ func (m *mockRepo) Create(upload *Upload) (*Upload, error) {
 	return upload, nil
 }
 
+func (m *mockRepo) Get(id string) (*Upload, error) {
+	if m.getFunc != nil {
+		return m.getFunc(id)
+	}
+	return nil, errors.New("mock: no file available")
+}
+
 type mockStorage struct {
 	saveFileFn func(dst string, file multipart.File) error
+	readFileFn func(path string) ([]byte, error)
 }
 
 func (m *mockStorage) SaveFile(dst string, file multipart.File) error {
 	return m.saveFileFn(dst, file)
+}
+
+func (m *mockStorage) ReadFile(path string) ([]byte, error) {
+	return m.readFileFn(path)
 }
 
 func newMultipartForm(t *testing.T, field, filename, content string) (*http.Request, string) {
@@ -57,15 +72,18 @@ func TestUploadsHandler(t *testing.T) {
 		method           string
 		requestSetup     func(t *testing.T) *http.Request
 		createUploadFn   func(upload *Upload) (*Upload, error)
+		getUploadFn      func(id string) (*Upload, error)
 		saveFileFn       func(dst string, file multipart.File) error
+		readFileFn       func(id string) ([]byte, error)
 		expectedStatus   int
 		expectedContains string
+		expectRaw        *bool
 	}{
 		{
 			name:   "POST success",
 			method: http.MethodPost,
 			requestSetup: func(t *testing.T) *http.Request {
-				req, _ := newMultipartForm(t, "files", "test.txt", "hello")
+				req, _ := newMultipartForm(t, "artefact", "test.txt", "hello")
 				return req
 			},
 			createUploadFn: func(upload *Upload) (*Upload, error) {
@@ -76,23 +94,7 @@ func TestUploadsHandler(t *testing.T) {
 				return nil
 			},
 			expectedStatus:   http.StatusCreated,
-			expectedContains: `{"id": "1", "files": [{"provider": "filesystem", "filename": "test.txt", "path": "tmp/uploads/mock-id/"}]}`,
-		},
-		{
-			name:   "POST success",
-			method: http.MethodPost,
-			requestSetup: func(t *testing.T) *http.Request {
-				req, _ := newMultipartForm(t, "files", "test.txt", "hello")
-				return req
-			},
-			createUploadFn: func(upload *Upload) (*Upload, error) {
-				return nil, errors.New("boom")
-			},
-			saveFileFn: func(dst string, file multipart.File) error {
-				return nil
-			},
-			expectedStatus:   http.StatusInternalServerError,
-			expectedContains: `{"code": 500, "error": "Failed to create upload", "reason": "boom"}`,
+			expectedContains: `{"id": "1", "files": {"artefact": {"provider": "filesystem", "filename": "test.txt", "path": "tmp/uploads/mock-id/"}}}`,
 		},
 		{
 			name:   "POST failure - parse error",
@@ -134,6 +136,104 @@ func TestUploadsHandler(t *testing.T) {
 			expectedContains: `{"code": 500, "error": "Failed to create upload", "reason": "upload failed"}`,
 		},
 		{
+			name:   "GET returns raw file bytes",
+			method: http.MethodGet,
+			requestSetup: func(t *testing.T) *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/uploads/mock-id/artefact", nil)
+				return req
+			},
+			createUploadFn: nil,
+			getUploadFn: func(id string) (*Upload, error) {
+				return &Upload{
+					ID: id,
+					Files: map[string]FileRef{
+						"artefact": {
+							FileName: "test.txt",
+							Path:     "mock-id",
+						},
+					},
+				}, nil
+			},
+			saveFileFn: nil,
+			readFileFn: func(path string) ([]byte, error) {
+				return []byte("hello world"), nil
+			},
+			expectedStatus:   http.StatusOK,
+			expectedContains: "hello world",
+			expectRaw:        pointerTo(true),
+		},
+		{
+			name:   "GET to unknown upload returns error",
+			method: http.MethodGet,
+			requestSetup: func(t *testing.T) *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/uploads/unknown-id/artefact", nil)
+				return req
+			},
+			createUploadFn: nil,
+			getUploadFn: func(id string) (*Upload, error) {
+				return nil, errors.New("not found")
+			},
+			saveFileFn: nil,
+			readFileFn: func(path string) ([]byte, error) {
+				return nil, errors.New("unexpected id")
+			},
+			expectedStatus:   http.StatusNotFound,
+			expectedContains: `{"code": 404, "error": "Upload not found", "reason": "not found"}`,
+		},
+		{
+			name:   "GET to unknown file returns error",
+			method: http.MethodGet,
+			requestSetup: func(t *testing.T) *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/uploads/mock-id/unknown", nil)
+				return req
+			},
+			createUploadFn: nil,
+			getUploadFn: func(id string) (*Upload, error) {
+				return &Upload{
+					ID: id,
+					Files: map[string]FileRef{
+						"artefact": {
+							FileName: "test.txt",
+							Path:     "mock-id",
+						},
+					},
+				}, nil
+			},
+			saveFileFn: nil,
+			readFileFn: func(path string) ([]byte, error) {
+				return nil, errors.New("unexpected id")
+			},
+			expectedStatus:   http.StatusNotFound,
+			expectedContains: `{"code": 404, "error": "File not found", "reason": "unknown file"}`,
+		},
+		{
+			name:   "GET to problematic file returns error",
+			method: http.MethodGet,
+			requestSetup: func(t *testing.T) *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/uploads/mock-id/artefact", nil)
+				return req
+			},
+			createUploadFn: nil,
+			getUploadFn: func(id string) (*Upload, error) {
+				return &Upload{
+					ID: id,
+					Files: map[string]FileRef{
+						"artefact": {
+							FileName: "test.txt",
+							Path:     "mock-id",
+						},
+					},
+				}, nil
+			},
+			saveFileFn: nil,
+			readFileFn: func(path string) ([]byte, error) {
+				return nil, errors.New("boom")
+			},
+			expectedStatus:   http.StatusInternalServerError,
+			expectedContains: `{"code": 500, "error": "Could not read file", "reason": "boom"}`,
+		},
+
+		{
 			name:   "METHOD failure",
 			method: http.MethodDelete,
 			requestSetup: func(t *testing.T) *http.Request {
@@ -149,17 +249,31 @@ func TestUploadsHandler(t *testing.T) {
 			t.Parallel()
 
 			var storage Storage
+
+			var saveFileFn func(dst string, file multipart.File) error
 			if tc.saveFileFn != nil {
-				storage = &mockStorage{saveFileFn: tc.saveFileFn}
+				saveFileFn = tc.saveFileFn
 			} else {
-				storage = &mockStorage{saveFileFn: func(dst string, file multipart.File) error {
+				saveFileFn = func(dst string, file multipart.File) error {
 					return nil
-				}}
+				}
 			}
+
+			var readFileFn func(id string) ([]byte, error)
+			if tc.readFileFn != nil {
+				readFileFn = tc.readFileFn
+			} else {
+				readFileFn = func(id string) ([]byte, error) {
+					return nil, nil
+				}
+			}
+
+			storage = &mockStorage{saveFileFn: saveFileFn, readFileFn: readFileFn}
 
 			handler := NewHandler(
 				&mockRepo{
 					createFunc: tc.createUploadFn,
+					getFunc:    tc.getUploadFn,
 				},
 				storage,
 				func() string {
@@ -168,14 +282,39 @@ func TestUploadsHandler(t *testing.T) {
 			)
 			req := tc.requestSetup(t)
 			rr := httptest.NewRecorder()
-			handler.Uploads(rr, req)
 
-			checkResponse(t, rr.Result(), tc.expectedStatus, tc.expectedContains)
+			r := mux.NewRouter()
+			r.HandleFunc("/uploads/{id}/{filename}", handler.Upload)
+			r.HandleFunc("/uploads", handler.Uploads)
+			r.ServeHTTP(rr, req)
+
+			if tc.expectRaw != nil && *tc.expectRaw == true {
+				checkRawResponse(t, rr.Result(), tc.expectedStatus, tc.expectedContains)
+			} else {
+				checkJSONResponse(t, rr.Result(), tc.expectedStatus, tc.expectedContains)
+			}
 		})
 	}
 }
 
-func checkResponse(t *testing.T, got *http.Response, expectedStatus int, expected string) {
+func checkRawResponse(t *testing.T, got *http.Response, expectedStatus int, expected string) {
+	defer got.Body.Close()
+
+	body, err := io.ReadAll(got.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %s", err)
+	}
+
+	if expectedStatus != got.StatusCode {
+		t.Errorf("status mismatch - wanted %d, got %d", expectedStatus, got.StatusCode)
+	}
+
+	if expected != string(body) {
+		t.Errorf("Body mismatch:\nexpected: %s\ngot: %s", expected, string(body))
+	}
+}
+
+func checkJSONResponse(t *testing.T, got *http.Response, expectedStatus int, expected string) {
 	defer got.Body.Close()
 
 	body, err := io.ReadAll(got.Body)
@@ -200,4 +339,8 @@ func checkResponse(t *testing.T, got *http.Response, expectedStatus int, expecte
 	if !reflect.DeepEqual(expectedData, gotData) {
 		t.Errorf("JSON mismatch:\nexpected: %+v\ngot: %+v", expectedData, gotData)
 	}
+}
+
+func pointerTo[T any](v T) *T {
+	return &v
 }

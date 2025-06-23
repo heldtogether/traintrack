@@ -64,14 +64,14 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 			return nil, fmt.Errorf("get upload %s: %w", id, err)
 		}
 
-		newFiles := make([]uploads.FileRef, len(upload.Files))
-		for i, file := range upload.Files {
+		newFiles := make(map[string]uploads.FileRef, len(upload.Files))
+		for name, file := range upload.Files {
 			origPath := filepath.Join(file.Path, file.FileName)
 			newPath := filepath.Join("datasets", created.ID)
 			if err := s.Storage.MoveFile(origPath, filepath.Join(newPath, file.FileName)); err != nil {
 				return nil, fmt.Errorf("move file %s: %w", file, err)
 			}
-			newFiles[i] = uploads.FileRef{
+			newFiles[name] = uploads.FileRef{
 				Provider: file.Provider,
 				FileName: file.FileName,
 				Path:     newPath,
@@ -79,6 +79,7 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		}
 
 		upload.Files = newFiles
+		upload.DatasetID = created.ID
 		if err := s.UploadsRepo.MoveWithQuerier(tx, upload); err != nil {
 			return nil, fmt.Errorf("update upload %s: %w", id, err)
 		}

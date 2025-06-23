@@ -190,11 +190,12 @@ func TestService_Create(t *testing.T) {
 					}
 					return &uploads.Upload{
 						ID: uploadID,
-						Files: []uploads.FileRef{{
-							Provider: uploads.ProviderFileSystem,
-							FileName: fileName,
-							Path:     "temp/path/",
-						}},
+						Files: map[string]uploads.FileRef{
+							"artefact": {
+								Provider: uploads.ProviderFileSystem,
+								FileName: fileName,
+								Path:     "temp/path/",
+							}},
 					}, nil
 				},
 				MoveFunc: func(ctx context.Context, u *uploads.Upload) error {
@@ -224,7 +225,7 @@ func TestService_Create(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			_, err := service.Create(ctx, &Dataset{UploadIds: []string{uploadID}})
+			_, err := service.Create(ctx, &Dataset{UploadIds: map[string]string{"file1": uploadID}})
 
 			if tc.expectCreateError && err == nil {
 				t.Fatalf("expected error, got nil")

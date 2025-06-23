@@ -38,8 +38,7 @@ func TestFileSystemStorage_SaveFile(t *testing.T) {
 		t.Fatalf("SaveFile failed: %v", err)
 	}
 
-	fullPath := filepath.Join(tmpDir, dstPath)
-	data, err := os.ReadFile(fullPath)
+	data, err := storage.ReadFile(dstPath)
 	if err != nil {
 		t.Fatalf("failed to read written file: %v", err)
 	}
@@ -97,8 +96,7 @@ func TestFileSystemStorage_MoveFile(t *testing.T) {
 		t.Fatalf("MoveFile failed: %v", err)
 	}
 
-	fullDstPath := filepath.Join(tmpDir, dstPath)
-	data, err := os.ReadFile(fullDstPath)
+	data, err := storage.ReadFile(dstPath)
 	if err != nil {
 		t.Fatalf("failed to read moved file: %v", err)
 	}
@@ -110,5 +108,23 @@ func TestFileSystemStorage_MoveFile(t *testing.T) {
 	fullSrcPath := filepath.Join(tmpDir, srcPath)
 	if _, err := os.Stat(fullSrcPath); !os.IsNotExist(err) {
 		t.Errorf("source file still exists after move: %v", err)
+	}
+}
+
+func TestFileSystemStorage_MoveFile_FileCreationFails(t *testing.T) {
+	// Create a temp dir with read-only permissions
+	tmpDir := t.TempDir()
+	nestedDir := filepath.Join(tmpDir, "readonly")
+	if err := os.MkdirAll(nestedDir, 0500); err != nil {
+		t.Fatalf("failed to create readonly dir: %v", err)
+	}
+
+	storage := &FileSystemStorage{BaseDir: tmpDir}
+
+	srcPath := "original/location/file.txt"
+	dstPath := "readonly/location/file.txt"
+	err := storage.MoveFile(srcPath, dstPath)
+	if err == nil {
+		t.Fatal("expected file creation error due to read-only directory, got nil")
 	}
 }

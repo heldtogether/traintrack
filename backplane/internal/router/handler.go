@@ -36,6 +36,7 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 
 	uploadsHandler := uploads.NewHandler(uploadsRepo, fs, nil)
 	mux.HandleFunc("/uploads", uploadsHandler.Uploads)
+	mux.HandleFunc("/uploads/{id}/{filename}", uploadsHandler.Upload)
 
 	loggedMux := loggingMiddleware(mux)
 	return loggedMux
