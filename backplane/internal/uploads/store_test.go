@@ -34,12 +34,12 @@ func TestCreate(t *testing.T) {
 	}
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(CreateQuery),
+		regexp.QuoteMeta(createQuery),
 	).
 		WithArgs(filesJSON).
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("1"))
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
 	got, err := service.Create(
 		&Upload{
@@ -75,11 +75,11 @@ func TestCreate_ScanFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db.ExpectQuery(regexp.QuoteMeta(CreateQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(createQuery)).
 		WithArgs(filesJSON).
 		WillReturnError(errors.New("scan failed"))
 
-	repo := NewRepository(db)
+	repo := NewStore(db)
 	_, err = repo.Create(&Upload{Files: files})
 
 	if err == nil || !strings.Contains(err.Error(), "scan failed") {
@@ -106,11 +106,11 @@ func TestMove(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db.ExpectExec(regexp.QuoteMeta(UpdateQuery)).
+	db.ExpectExec(regexp.QuoteMeta(updateQuery)).
 		WithArgs(filesJSON, upload.DatasetID, nilStr, upload.ID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	repo := NewRepository(db)
+	repo := NewStore(db)
 
 	err = repo.Move(upload)
 	if err != nil {
@@ -140,13 +140,13 @@ func TestGetByIDWithQuerier(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs("123").
 		WillReturnRows(pgxmock.NewRows([]string{"id", "files"}).
 			AddRow(want.ID, filesJSON),
 		)
 
-	repo := NewRepository(nil)
+	repo := NewStore(nil)
 	got, err := repo.GetByIDWithQuerier(db, "123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -168,11 +168,11 @@ func TestGetByIDWithQuerier_ScanError(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs("999").
 		WillReturnError(errors.New("scan fail"))
 
-	repo := NewRepository(nil)
+	repo := NewStore(nil)
 	_, err = repo.GetByIDWithQuerier(db, "999")
 	if err == nil || !strings.Contains(err.Error(), "scan") {
 		t.Fatalf("expected scan error, got %v", err)
@@ -188,13 +188,13 @@ func TestGetByIDWithQuerier_UnmarshalError(t *testing.T) {
 
 	invalidJSON := []byte(`{"bad":`) // Invalid JSON
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs("123").
 		WillReturnRows(pgxmock.NewRows([]string{"id", "files"}).
 			AddRow("123", invalidJSON),
 		)
 
-	repo := NewRepository(nil)
+	repo := NewStore(nil)
 	_, err = repo.GetByIDWithQuerier(db, "123")
 	if err == nil || !strings.Contains(err.Error(), "unmarshal") {
 		t.Fatalf("expected unmarshal error, got %v", err)
@@ -216,11 +216,11 @@ func TestRepository_Get_Success(t *testing.T) {
 	rows := pgxmock.NewRows([]string{"id", "files"}).
 		AddRow(expectedID, expectedFiles)
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs(expectedID).
 		WillReturnRows(rows)
 
-	repo := &Repository{conn: db}
+	repo := &Store{q: db}
 	upload, err := repo.Get(expectedID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -242,11 +242,11 @@ func TestRepository_Get_ScanError(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs("999").
 		WillReturnError(errors.New("scan fail"))
 
-	repo := &Repository{conn: db}
+	repo := &Store{q: db}
 	_, err = repo.Get("999")
 	if err == nil || !strings.Contains(err.Error(), "scan fail") {
 		t.Fatalf("expected scan fail error, got %v", err)
@@ -260,11 +260,11 @@ func TestRepository_Get_NotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery(regexp.QuoteMeta(GetQuery)).
+	db.ExpectQuery(regexp.QuoteMeta(getQuery)).
 		WithArgs("123").
 		WillReturnError(pgx.ErrNoRows)
 
-	repo := &Repository{conn: db}
+	repo := &Store{q: db}
 	_, err = repo.Get("123")
 	if !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("expected pgx.ErrNoRows, got %v", err)

@@ -26,7 +26,7 @@ func newMockMultipartFile(content []byte) multipart.File {
 func TestFileSystemStorage_SaveFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	storage := &FileSystemStorage{BaseDir: tmpDir}
+	storage := &FileSystemStore{BaseDir: tmpDir}
 
 	content := []byte("hello world")
 	file := newMockMultipartFile(content)
@@ -50,7 +50,7 @@ func TestFileSystemStorage_SaveFile(t *testing.T) {
 
 func TestFileSystemStorage_SaveFile_DirCreationFails(t *testing.T) {
 	// Most systems disallow writing to /dev/null/file.txt
-	storage := &FileSystemStorage{BaseDir: "/dev/null"}
+	storage := &FileSystemStore{BaseDir: "/dev/null"}
 
 	file := newMockMultipartFile([]byte("test content"))
 	err := storage.SaveFile("some/path/file.txt", file)
@@ -67,7 +67,7 @@ func TestFileSystemStorage_SaveFile_FileCreationFails(t *testing.T) {
 		t.Fatalf("failed to create readonly dir: %v", err)
 	}
 
-	storage := &FileSystemStorage{BaseDir: tmpDir}
+	storage := &FileSystemStore{BaseDir: tmpDir}
 	file := newMockMultipartFile([]byte("test"))
 
 	dstPath := filepath.Join("readonly", "file.txt")
@@ -80,7 +80,7 @@ func TestFileSystemStorage_SaveFile_FileCreationFails(t *testing.T) {
 func TestFileSystemStorage_MoveFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	storage := &FileSystemStorage{BaseDir: tmpDir}
+	storage := &FileSystemStore{BaseDir: tmpDir}
 
 	srcPath := "original/location/file.txt"
 	dstPath := "new/location/file.txt"
@@ -119,7 +119,7 @@ func TestFileSystemStorage_MoveFile_FileCreationFails(t *testing.T) {
 		t.Fatalf("failed to create readonly dir: %v", err)
 	}
 
-	storage := &FileSystemStorage{BaseDir: tmpDir}
+	storage := &FileSystemStore{BaseDir: tmpDir}
 
 	srcPath := "original/location/file.txt"
 	dstPath := "readonly/location/file.txt"

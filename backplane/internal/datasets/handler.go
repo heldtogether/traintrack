@@ -16,19 +16,29 @@ import (
 	"github.com/heldtogether/traintrack/internal"
 )
 
-type Serv interface {
+/*
+Creator allows a Dataset to be created.
+*/
+type Creator interface {
 	Create(ctx context.Context, d *Dataset) (*Dataset, error)
+}
+
+/*
+Lister allows Datasets to be listed.
+*/
+type Lister interface {
 	List() ([]*Dataset, error)
 }
 
 type Handler struct {
-	service Serv
+	c Creator
+	l Lister
 
 	validator *validator.Validate
 	trans     ut.Translator
 }
 
-func NewHandler(s Serv) *Handler {
+func NewHandler(c Creator, l Lister) *Handler {
 	validator := validator.New(validator.WithRequiredStructEnabled())
 	validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tag := fld.Tag.Get("json")
@@ -45,12 +55,17 @@ func NewHandler(s Serv) *Handler {
 	en_translations.RegisterDefaultTranslations(validator, trans)
 
 	return &Handler{
-		service:   s,
+		c:         c,
+		l:         l,
 		validator: validator,
 		trans:     trans,
 	}
 }
 
+/*
+Datasets routes and handles all requests for Datasets. It should be
+registered on the router under something sensible, like /datasets.
+*/
 func (h *Handler) Datasets(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -91,13 +106,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(&internal.Error{
 			Code:    http.StatusBadRequest,
 			Message: "Failed to create dataset",
-			Reason:  fmt.Sprintf("bad input"),
+			Reason:  "bad input",
 			Details: details,
 		})
 		return
 	}
 
-	created, err := h.service.Create(r.Context(), d)
+	created, err := h.c.Create(r.Context(), d)
 	if err != nil {
 		log.Printf("failed to create dataset: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -113,7 +128,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	ds, err := h.service.List()
+	ds, err := h.l.List()
 	if err != nil {
 		log.Printf("failed to list datasets: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)

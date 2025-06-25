@@ -7,11 +7,14 @@ import (
 	"path/filepath"
 )
 
-type FileSystemStorage struct {
+/*
+FileSystemStore is a local file system storage provider. It implements ReadSaver.
+*/
+type FileSystemStore struct {
 	BaseDir string
 }
 
-func (f *FileSystemStorage) SaveFile(dstPath string, file multipart.File) error {
+func (f *FileSystemStore) SaveFile(dstPath string, file multipart.File) error {
 	fullPath := filepath.Join(f.BaseDir, dstPath)
 
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
@@ -28,7 +31,7 @@ func (f *FileSystemStorage) SaveFile(dstPath string, file multipart.File) error 
 	return err
 }
 
-func (f *FileSystemStorage) MoveFile(srcPath string, dstPath string) error {
+func (f *FileSystemStore) MoveFile(srcPath string, dstPath string) error {
 	fullSrcPath := filepath.Join(f.BaseDir, srcPath)
 	fullDstPath := filepath.Join(f.BaseDir, dstPath)
 
@@ -39,7 +42,7 @@ func (f *FileSystemStorage) MoveFile(srcPath string, dstPath string) error {
 	return os.Rename(fullSrcPath, fullDstPath)
 }
 
-func (f *FileSystemStorage) ReadFile(path string) ([]byte, error) {
+func (f *FileSystemStore) ReadFile(path string) ([]byte, error) {
 	fullPath := filepath.Join(f.BaseDir, path)
 	return os.ReadFile(fullPath)
 }

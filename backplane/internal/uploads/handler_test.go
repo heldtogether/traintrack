@@ -248,7 +248,7 @@ func TestUploadsHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var storage Storage
+			var storage ReadSaver
 
 			var saveFileFn func(dst string, file multipart.File) error
 			if tc.saveFileFn != nil {

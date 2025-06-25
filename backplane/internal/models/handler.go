@@ -16,19 +16,29 @@ import (
 	"github.com/heldtogether/traintrack/internal"
 )
 
-type Serv interface {
-	Create(ctx context.Context, m *Model) (*Model, error)
+/*
+Creator allows a Model to be created.
+*/
+type Creator interface {
+	Create(ctx context.Context, d *Model) (*Model, error)
+}
+
+/*
+Lister allows Models to be listed.
+*/
+type Lister interface {
 	List() ([]*Model, error)
 }
 
 type Handler struct {
-	service Serv
+	c Creator
+	l Lister
 
 	validator *validator.Validate
 	trans     ut.Translator
 }
 
-func NewHandler(s Serv) *Handler {
+func NewHandler(c Creator, l Lister) *Handler {
 	validator := validator.New(validator.WithRequiredStructEnabled())
 	validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tag := fld.Tag.Get("json")
@@ -45,12 +55,17 @@ func NewHandler(s Serv) *Handler {
 	en_translations.RegisterDefaultTranslations(validator, trans)
 
 	return &Handler{
-		service:   s,
+		c:         c,
+		l:         l,
 		validator: validator,
 		trans:     trans,
 	}
 }
 
+/*
+Models routes and handles all requests for Models. It should be
+registered on the router under something sensible, like /models.
+*/
 func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -91,13 +106,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(&internal.Error{
 			Code:    http.StatusBadRequest,
 			Message: "Failed to create model",
-			Reason:  fmt.Sprintf("bad input"),
+			Reason:  "bad input",
 			Details: details,
 		})
 		return
 	}
 
-	created, err := h.service.Create(r.Context(), m)
+	created, err := h.c.Create(r.Context(), m)
 	if err != nil {
 		log.Printf("failed to create model: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -113,7 +128,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	ds, err := h.service.List()
+	ds, err := h.l.List()
 	if err != nil {
 		log.Printf("failed to list models: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)

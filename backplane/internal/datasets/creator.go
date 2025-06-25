@@ -9,41 +9,50 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type DatasetRepo interface {
-	CreateWithQuerier(q Querier, d *Dataset) (*Dataset, error)
+type datasetsStore interface {
+	createWithQuerier(q Querier, d *Dataset) (*Dataset, error)
 	List() ([]*Dataset, error)
 }
 
-type UploadRepo interface {
+/*
+An interface that allows an Upload to be moved using the provider Querier
+which may be a transaction.
+*/
+type UploadMover interface {
 	GetByIDWithQuerier(q uploads.Querier, id string) (*uploads.Upload, error)
 	MoveWithQuerier(q uploads.Querier, u *uploads.Upload) error
 }
 
-type Storage interface {
+type FileMover interface {
 	MoveFile(srcPath, dstPath string) error
 }
 
-type DB interface {
+type TxBeginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-type Tx interface {
-	Querier
-	Commit(ctx context.Context) error
-	Rollback(ctx context.Context) error
+type DefaultCreator struct {
+	s           datasetsStore
+	uploadMover UploadMover
+	fileMover   FileMover
+	db          TxBeginner
 }
 
-type Service struct {
-	DatasetsRepo DatasetRepo
-	UploadsRepo  UploadRepo
-	Storage      Storage
-	DB           DB
+func NewCreator(s *Store, u UploadMover, f FileMover, db TxBeginner) *DefaultCreator {
+	return &DefaultCreator{
+		s:           s,
+		uploadMover: u,
+		fileMover:   f,
+		db:          db,
+	}
 }
 
-// Create a new dataset and move any artefacts from temporary storage
-// to a sensible forever home.
-func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err error) {
-	tx, err := s.DB.Begin(ctx)
+/*
+Create a new dataset and move any artefacts from temporary storage
+to a sensible forever home.
+*/
+func (c *DefaultCreator) Create(ctx context.Context, d *Dataset) (created *Dataset, err error) {
+	tx, err := c.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
@@ -53,13 +62,13 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		}
 	}()
 
-	created, err = s.DatasetsRepo.CreateWithQuerier(tx, d)
+	created, err = c.s.createWithQuerier(tx, d)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, id := range d.UploadIds {
-		upload, err := s.UploadsRepo.GetByIDWithQuerier(tx, id)
+		upload, err := c.uploadMover.GetByIDWithQuerier(tx, id)
 		if err != nil {
 			return nil, fmt.Errorf("get upload %s: %w", id, err)
 		}
@@ -68,7 +77,7 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		for name, file := range upload.Files {
 			origPath := filepath.Join(file.Path, file.FileName)
 			newPath := filepath.Join("datasets", created.ID)
-			if err := s.Storage.MoveFile(origPath, filepath.Join(newPath, file.FileName)); err != nil {
+			if err := c.fileMover.MoveFile(origPath, filepath.Join(newPath, file.FileName)); err != nil {
 				return nil, fmt.Errorf("move file %s: %w", file, err)
 			}
 			newFiles[name] = uploads.FileRef{
@@ -80,7 +89,7 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 
 		upload.Files = newFiles
 		upload.DatasetID = pointerTo(created.ID)
-		if err := s.UploadsRepo.MoveWithQuerier(tx, upload); err != nil {
+		if err := c.uploadMover.MoveWithQuerier(tx, upload); err != nil {
 			return nil, fmt.Errorf("update upload %s: %w", id, err)
 		}
 	}
@@ -90,10 +99,6 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 	}
 
 	return created, nil
-}
-
-func (s *Service) List() ([]*Dataset, error) {
-	return s.DatasetsRepo.List()
 }
 
 func pointerTo[T any](v T) *T {

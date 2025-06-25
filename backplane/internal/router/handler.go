@@ -18,36 +18,36 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 		fmt.Fprint(w, "OK")
 	})
 
-	datasetsRepo := datasets.NewRepository(conn)
-	uploadsRepo := uploads.NewRepository(conn)
-	modelsRepo := models.NewRepository(conn)
+	datasetsStore := datasets.NewStore(conn)
+	uploadsStore := uploads.NewStore(conn)
+	modelsStore := models.NewStore(conn)
 
-	fs := &uploads.FileSystemStorage{
+	fs := &uploads.FileSystemStore{
 		BaseDir: "./files/",
 	}
 
-	datasetsSvc := &datasets.Service{
-		DatasetsRepo: datasetsRepo,
-		UploadsRepo:  uploadsRepo,
-		Storage:      fs,
-		DB:           conn,
-	}
+	datasetsCreator := datasets.NewCreator(
+		datasetsStore,
+		uploadsStore,
+		fs,
+		conn,
+	)
 
-	modelsSvc := &models.Service{
-		ModelsRepo:  modelsRepo,
-		UploadsRepo: uploadsRepo,
-		Storage:     fs,
-		DB:          conn,
-	}
+	modelsCreator := models.NewCreator(
+		modelsStore,
+		uploadsStore,
+		fs,
+		conn,
+	)
 
-	datasetsHandler := datasets.NewHandler(datasetsSvc)
+	datasetsHandler := datasets.NewHandler(datasetsCreator, datasetsStore)
 	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
 
-	uploadsHandler := uploads.NewHandler(uploadsRepo, fs, nil)
+	uploadsHandler := uploads.NewHandler(uploadsStore, fs, nil)
 	mux.HandleFunc("/uploads", uploadsHandler.Uploads)
 	mux.HandleFunc("/uploads/{id}/{filename}", uploadsHandler.Upload)
 
-	modelsHandler := models.NewHandler(modelsSvc)
+	modelsHandler := models.NewHandler(modelsCreator, modelsStore)
 	mux.HandleFunc("/models", modelsHandler.Models)
 
 	loggedMux := loggingMiddleware(mux)

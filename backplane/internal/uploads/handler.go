@@ -13,37 +13,50 @@ import (
 	"github.com/heldtogether/traintrack/internal"
 )
 
-type Repo interface {
+/*
+CreateGetter allows an Upload to be created or got from the store.
+*/
+type CreateGetter interface {
 	Create(u *Upload) (*Upload, error)
 	Get(id string) (*Upload, error)
 }
 
-type Storage interface {
+/*
+ReadSaver manages file operations to some storage provider.
+*/
+type ReadSaver interface {
 	SaveFile(dstPath string, file multipart.File) error
 	ReadFile(path string) ([]byte, error)
 }
 
+/*
+UUIDGenerator is a type alias for something that returns unique IDs.
+*/
 type UUIDGenerator func() string
 
 type Handler struct {
-	repo    Repo
-	storage Storage
+	store   CreateGetter
+	storage ReadSaver
 	newUUID UUIDGenerator
 }
 
-func NewHandler(r Repo, s Storage, uuidGen UUIDGenerator) *Handler {
+func NewHandler(c CreateGetter, r ReadSaver, uuidGen UUIDGenerator) *Handler {
 	if uuidGen == nil {
 		uuidGen = func() string {
 			return uuid.NewString()
 		}
 	}
 	return &Handler{
-		repo:    r,
-		storage: s,
+		store:   c,
+		storage: r,
 		newUUID: uuidGen,
 	}
 }
 
+/*
+Uploads routes and handles all requests at the groups of Uploads level.
+It should be registered on the router under something sensible, like /uploads.
+*/
 func (h *Handler) Uploads(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
@@ -58,6 +71,11 @@ func (h *Handler) Uploads(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
+Uploads routes and handles all requests at the individual Upload level.
+It should be registered on the router under something sensible.
+It expects an `id` and `filename` to be present, like /uploads/{id}/{filename}.
+*/
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -72,6 +90,11 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
+Create accepts a multipart form request consisting of one or more files. It
+will store the files in a temporary location on the ReadSaver. We expect
+other handlers to later move the files to their forever home.
+*/
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(32 << 20) // 32MB chunks
 	if err != nil {
@@ -147,7 +170,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Files: fileRefs,
 	}
 
-	upload, err = h.repo.Create(upload)
+	upload, err = h.store.Create(upload)
 	if err != nil {
 		log.Printf("failed to create upload: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -163,12 +186,17 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(upload)
 }
 
+/*
+Get returns the file `filename` associated with the upload indicated by
+`id` in the URL. The file contents is returned, with the correct
+Content-Disposition header for details like the filename.
+*/
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	uploadID := vars["id"]
 	filename := vars["filename"]
 
-	upload, err := h.repo.Get(uploadID)
+	upload, err := h.store.Get(uploadID)
 	if err != nil || upload == nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(&internal.Error{

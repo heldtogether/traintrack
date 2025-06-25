@@ -22,11 +22,11 @@ func TestList(t *testing.T) {
 		AddRow("1", "", nil, "", "", make(map[string]string))
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(ListQuery),
+		regexp.QuoteMeta(listQuery),
 	).
 		WillReturnRows(rows)
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
 	ds, err := service.List()
 	if err != nil {
@@ -49,11 +49,11 @@ func TestListFailOnQuery(t *testing.T) {
 	defer db.Close()
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(ListQuery),
+		regexp.QuoteMeta(listQuery),
 	).
 		WillReturnError(fmt.Errorf("expected error"))
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
 	ds, err := service.List()
 	if err == nil {
@@ -79,11 +79,11 @@ func TestListFailOnScan(t *testing.T) {
 		AddRow(nil)
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(ListQuery),
+		regexp.QuoteMeta(listQuery),
 	).
 		WillReturnRows(rows)
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
 	ds, err := service.List()
 	if err == nil {
@@ -106,12 +106,12 @@ func TestCreate(t *testing.T) {
 	defer db.Close()
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(CreateQuery),
+		regexp.QuoteMeta(createQuery),
 	).
 		WithArgs("name", nilStr, "1.0.0", "description").
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("1"))
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
 	want := &Dataset{
 		ID:          "1",
@@ -120,7 +120,7 @@ func TestCreate(t *testing.T) {
 		Version:     "1.0.0",
 		Description: "description",
 	}
-	got, err := service.Create(
+	got, err := service.create(
 		&Dataset{
 			Name:        "name",
 			Parent:      nil,
@@ -150,14 +150,14 @@ func TestCreateFailOnScan(t *testing.T) {
 	type unscannable struct{}
 
 	db.ExpectQuery(
-		regexp.QuoteMeta(CreateQuery),
+		regexp.QuoteMeta(createQuery),
 	).
 		WithArgs("name", nilStr, "1.0.0", "description").
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(unscannable{}))
 
-	service := NewRepository(db)
+	service := NewStore(db)
 
-	got, err := service.Create(
+	got, err := service.create(
 		&Dataset{
 			Name:        "name",
 			Parent:      nil,

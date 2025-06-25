@@ -1,10 +1,9 @@
-package models
+package datasets
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/heldtogether/traintrack/internal/uploads"
@@ -13,28 +12,28 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 )
 
-type MockUploadsRepo struct {
+type MockUploadsStore struct {
 	GetByIDFunc func(ctx context.Context, id string) (*uploads.Upload, error)
 	MoveFunc    func(ctx context.Context, u *uploads.Upload) error
 }
 
-func (m *MockUploadsRepo) GetByIDWithQuerier(_ uploads.Querier, id string) (*uploads.Upload, error) {
+func (m *MockUploadsStore) GetByIDWithQuerier(_ uploads.Querier, id string) (*uploads.Upload, error) {
 	return m.GetByIDFunc(context.Background(), id)
 }
-func (m *MockUploadsRepo) MoveWithQuerier(_ uploads.Querier, u *uploads.Upload) error {
+func (m *MockUploadsStore) MoveWithQuerier(_ uploads.Querier, u *uploads.Upload) error {
 	return m.MoveFunc(context.Background(), u)
 }
 
-type MockModelsRepo struct {
-	CreateFunc func(ctx context.Context, d *Model) (*Model, error)
-	ListFunc   func() ([]*Model, error)
+type MockDatasetsStore struct {
+	CreateFunc func(ctx context.Context, d *Dataset) (*Dataset, error)
+	ListFunc   func() ([]*Dataset, error)
 }
 
-func (m *MockModelsRepo) CreateWithQuerier(_ Querier, d *Model) (*Model, error) {
+func (m *MockDatasetsStore) createWithQuerier(_ Querier, d *Dataset) (*Dataset, error) {
 	return m.CreateFunc(context.Background(), d)
 }
 
-func (m *MockModelsRepo) List() ([]*Model, error) {
+func (m *MockDatasetsStore) List() ([]*Dataset, error) {
 	return m.ListFunc()
 }
 
@@ -65,11 +64,11 @@ func (l *loggingTx) Rollback(ctx context.Context) error {
 	return nil
 }
 
-type MockStorage struct {
+type MockFileMover struct {
 	MoveFunc func(src, dst string) error
 }
 
-func (m *MockStorage) MoveFile(src, dst string) error {
+func (m *MockFileMover) MoveFile(src, dst string) error {
 	return m.MoveFunc(src, dst)
 }
 
@@ -91,7 +90,7 @@ func (m *MockTx) Exec(ctx context.Context, q string, args ...any) (pgconn.Comman
 }
 
 func TestService_Create(t *testing.T) {
-	modelID := "ds456"
+	datasetID := "ds456"
 	uploadID := "upload123"
 	fileName := "artifact.txt"
 
@@ -108,9 +107,9 @@ func TestService_Create(t *testing.T) {
 		{
 			name: "success",
 			wantCalled: []string{
-				"create-model",
+				"create-dataset",
 				"get-upload",
-				"move-file temp/path/artifact.txt -> models/ds456/artifact.txt",
+				"move-file temp/path/artifact.txt -> datasets/ds456/artifact.txt",
 				"move-upload",
 				"commit",
 			},
@@ -118,31 +117,31 @@ func TestService_Create(t *testing.T) {
 		{
 			name:              "create fails",
 			failCreate:        true,
-			wantCalled:        []string{"create-model", "rollback"},
+			wantCalled:        []string{"create-dataset", "rollback"},
 			expectCreateError: true,
 		},
 		{
 			name:              "get upload fails",
 			failGetUpload:     true,
-			wantCalled:        []string{"create-model", "get-upload", "rollback"},
+			wantCalled:        []string{"create-dataset", "get-upload", "rollback"},
 			expectCreateError: true,
 		},
 		{
 			name:              "move file fails",
 			failMoveFile:      true,
-			wantCalled:        []string{"create-model", "get-upload", "move-file temp/path/artifact.txt -> models/ds456/artifact.txt", "rollback"},
+			wantCalled:        []string{"create-dataset", "get-upload", "move-file temp/path/artifact.txt -> datasets/ds456/artifact.txt", "rollback"},
 			expectCreateError: true,
 		},
 		{
 			name:              "move upload fails",
 			failMoveUpload:    true,
-			wantCalled:        []string{"create-model", "get-upload", "move-file temp/path/artifact.txt -> models/ds456/artifact.txt", "move-upload", "rollback"},
+			wantCalled:        []string{"create-dataset", "get-upload", "move-file temp/path/artifact.txt -> datasets/ds456/artifact.txt", "move-upload", "rollback"},
 			expectCreateError: true,
 		},
 		{
 			name:              "commit fails",
 			failCommit:        true,
-			wantCalled:        []string{"create-model", "get-upload", "move-file temp/path/artifact.txt -> models/ds456/artifact.txt", "move-upload", "commit", "rollback"},
+			wantCalled:        []string{"create-dataset", "get-upload", "move-file temp/path/artifact.txt -> datasets/ds456/artifact.txt", "move-upload", "commit", "rollback"},
 			expectCreateError: true,
 		},
 	}
@@ -169,20 +168,20 @@ func TestService_Create(t *testing.T) {
 
 			mockDB := &mockDB{tx: tx}
 
-			mockModelRepo := &MockModelsRepo{
-				CreateFunc: func(ctx context.Context, d *Model) (*Model, error) {
-					called = append(called, "create-model")
+			mockDatasetStore := &MockDatasetsStore{
+				CreateFunc: func(ctx context.Context, d *Dataset) (*Dataset, error) {
+					called = append(called, "create-dataset")
 					if tc.failCreate {
 						return nil, errors.New("boom")
 					}
-					return &Model{
-						ID:        modelID,
+					return &Dataset{
+						ID:        datasetID,
 						UploadIds: d.UploadIds,
 					}, nil
 				},
 			}
 
-			mockUploadRepo := &MockUploadsRepo{
+			mockUploadStore := &MockUploadsStore{
 				GetByIDFunc: func(ctx context.Context, id string) (*uploads.Upload, error) {
 					called = append(called, "get-upload")
 					if tc.failGetUpload {
@@ -207,7 +206,7 @@ func TestService_Create(t *testing.T) {
 				},
 			}
 
-			mockStorage := &MockStorage{
+			mockStorage := &MockFileMover{
 				MoveFunc: func(src, dst string) error {
 					called = append(called, fmt.Sprintf("move-file %s -> %s", src, dst))
 					if tc.failMoveFile {
@@ -217,15 +216,15 @@ func TestService_Create(t *testing.T) {
 				},
 			}
 
-			service := &Service{
-				ModelsRepo:  mockModelRepo,
-				UploadsRepo: mockUploadRepo,
-				Storage:     mockStorage,
-				DB:          mockDB,
+			creator := &DefaultCreator{
+				s:           mockDatasetStore,
+				uploadMover: mockUploadStore,
+				fileMover:   mockStorage,
+				db:          mockDB,
 			}
 
 			ctx := context.Background()
-			_, err := service.Create(ctx, &Model{UploadIds: map[string]string{"file1": uploadID}})
+			_, err := creator.Create(ctx, &Dataset{UploadIds: map[string]string{"file1": uploadID}})
 
 			if tc.expectCreateError && err == nil {
 				t.Fatalf("expected error, got nil")
@@ -244,27 +243,5 @@ func TestService_Create(t *testing.T) {
 				t.Errorf("called steps = %v, want = %v", called, tc.wantCalled)
 			}
 		})
-	}
-}
-
-func TestService_List(t *testing.T) {
-	want := []*Model{
-		{ID: "1", Name: "Training Set"},
-		{ID: "2", Name: "Validation Set"},
-	}
-
-	mockRepo := &MockModelsRepo{
-		ListFunc: func() ([]*Model, error) {
-			return want, nil
-		},
-	}
-	svc := &Service{ModelsRepo: mockRepo}
-
-	got, err := svc.List()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %+v, want %+v", got, want)
 	}
 }

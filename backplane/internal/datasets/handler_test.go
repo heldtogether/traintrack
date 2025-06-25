@@ -12,16 +12,16 @@ import (
 	"testing"
 )
 
-type mockService struct {
+type mockCreatorAndLister struct {
 	CreateFn func(ctx context.Context, d *Dataset) (*Dataset, error)
 	ListFn   func() ([]*Dataset, error)
 }
 
-func (m *mockService) Create(ctx context.Context, d *Dataset) (*Dataset, error) {
+func (m *mockCreatorAndLister) Create(ctx context.Context, d *Dataset) (*Dataset, error) {
 	return m.CreateFn(ctx, d)
 }
 
-func (m *mockService) List() ([]*Dataset, error) {
+func (m *mockCreatorAndLister) List() ([]*Dataset, error) {
 	return m.ListFn()
 }
 
@@ -116,11 +116,11 @@ func TestRouter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockService := &mockService{
+			mockService := &mockCreatorAndLister{
 				CreateFn: tc.createDatasetFn,
 				ListFn:   tc.listDatasetsFn,
 			}
-			handler := NewHandler(mockService)
+			handler := NewHandler(mockService, mockService)
 
 			var bodyReader io.Reader
 			if tc.body != "" {

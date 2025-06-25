@@ -2,16 +2,34 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
 )
 
+type Model struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name" validate:"required"`
+	Parent      *string `json:"parent"`
+	Version     string  `json:"version" validate:"required"`
+	Description string  `json:"description" validate:"required"`
+
+	UploadIds map[string]string `json:"artefacts"`
+
+	DatasetId string `json:"dataset"`
+
+	Config      json.RawMessage `json:"config"`
+	Metadata    json.RawMessage `json:"metadata"`
+	Environment json.RawMessage `json:"environment"`
+	Evaluation  json.RawMessage `json:"evaluation"`
+}
+
 const (
-	CreateQuery = `INSERT INTO 
+	createQuery = `INSERT INTO 
 models (name, parent, version, description, dataset, config, metadata, environment, evaluation) 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
-	ListQuery   = `SELECT 
+	listQuery = `SELECT 
   m.id,
   m.name,
   m.parent,
@@ -32,22 +50,26 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-type Repository struct {
-	conn Querier
+type Store struct {
+	q Querier
 }
 
-func NewRepository(conn Querier) *Repository {
-	return &Repository{
-		conn: conn,
+func NewStore(q Querier) *Store {
+	return &Store{
+		q: q,
 	}
 }
 
-func (r *Repository) Create(d *Model) (*Model, error) {
-	return r.CreateWithQuerier(r.conn, d)
+// Don't export, we only want people using the designated
+// creator struct to ensure that the business logic is followed.
+func (s *Store) create(d *Model) (*Model, error) {
+	return s.createWithQuerier(s.q, d)
 }
 
-func (r *Repository) CreateWithQuerier(conn Querier, m *Model) (*Model, error) {
-	query := CreateQuery
+// Don't export, we only want people using the designated
+// creator struct to ensure that the business logic is followed.
+func (s *Store) createWithQuerier(conn Querier, m *Model) (*Model, error) {
+	query := createQuery
 	row := conn.QueryRow(
 		context.Background(),
 		query,
@@ -76,10 +98,13 @@ func (r *Repository) CreateWithQuerier(conn Querier, m *Model) (*Model, error) {
 	}, nil
 }
 
-func (r *Repository) List() ([]*Model, error) {
-	rows, err := r.conn.Query(
+/*
+List returns a list of all known Models.
+*/
+func (s *Store) List() ([]*Model, error) {
+	rows, err := s.q.Query(
 		context.TODO(),
-		ListQuery,
+		listQuery,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not query models: %s", err)

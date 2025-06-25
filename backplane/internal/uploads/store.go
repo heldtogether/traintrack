@@ -9,10 +9,33 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+type Upload struct {
+	ID        string             `json:"id"`
+	Files     map[string]FileRef `json:"files"`
+	DatasetID *string            `json:"dataset_id,omitempty"`
+	ModelID   *string            `json:"model_id,omitempty"`
+}
+
+/*
+Provider allows configuration of the underlying file storage provider.
+*/
+type Provider string
+
 const (
-	CreateQuery = `INSERT INTO uploads (files) VALUES ($1) RETURNING id`
-	UpdateQuery = `UPDATE uploads SET files = $1, dataset_id = $2, model_id = $3 WHERE id = $4`
-	GetQuery    = `SELECT id, files FROM uploads WHERE id = $1`
+	ProviderUnknown    Provider = "unknown"
+	ProviderFileSystem Provider = "filesystem"
+)
+
+type FileRef struct {
+	Provider Provider `json:"provider"`
+	FileName string   `json:"filename"`
+	Path     string   `json:"path"`
+}
+
+const (
+	createQuery = `INSERT INTO uploads (files) VALUES ($1) RETURNING id`
+	updateQuery = `UPDATE uploads SET files = $1, dataset_id = $2, model_id = $3 WHERE id = $4`
+	getQuery    = `SELECT id, files FROM uploads WHERE id = $1`
 )
 
 type Querier interface {
@@ -21,25 +44,25 @@ type Querier interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-type Repository struct {
-	conn Querier
+type Store struct {
+	q Querier
 }
 
-func NewRepository(conn Querier) *Repository {
-	return &Repository{
-		conn: conn,
+func NewStore(q Querier) *Store {
+	return &Store{
+		q: q,
 	}
 }
 
-func (r *Repository) Create(u *Upload) (*Upload, error) {
+func (s *Store) Create(u *Upload) (*Upload, error) {
 	filesJSON, err := json.Marshal(u.Files)
 	if err != nil {
 		// I'm not sure how this marhsalling would actually fail
 		return nil, err
 	}
 
-	query := CreateQuery
-	row := r.conn.QueryRow(
+	query := createQuery
+	row := s.q.QueryRow(
 		context.Background(),
 		query,
 		filesJSON,
@@ -56,9 +79,9 @@ func (r *Repository) Create(u *Upload) (*Upload, error) {
 	}, nil
 }
 
-func (r *Repository) Get(id string) (*Upload, error) {
-	query := GetQuery
-	row := r.conn.QueryRow(
+func (s *Store) Get(id string) (*Upload, error) {
+	query := getQuery
+	row := s.q.QueryRow(
 		context.Background(),
 		query,
 		id,
@@ -72,11 +95,11 @@ func (r *Repository) Get(id string) (*Upload, error) {
 	return &upload, nil
 }
 
-func (r *Repository) Move(u *Upload) error {
-	return r.MoveWithQuerier(r.conn, u)
+func (s *Store) Move(u *Upload) error {
+	return s.MoveWithQuerier(s.q, u)
 }
 
-func (r *Repository) MoveWithQuerier(conn Querier, u *Upload) error {
+func (s *Store) MoveWithQuerier(conn Querier, u *Upload) error {
 	filesJSON, err := json.Marshal(u.Files)
 	if err != nil {
 		// Shouldn't really happen, but good to check
@@ -85,7 +108,7 @@ func (r *Repository) MoveWithQuerier(conn Querier, u *Upload) error {
 
 	_, err = conn.Exec(
 		context.Background(),
-		UpdateQuery,
+		updateQuery,
 		filesJSON,
 		u.DatasetID,
 		u.ModelID,
@@ -95,8 +118,8 @@ func (r *Repository) MoveWithQuerier(conn Querier, u *Upload) error {
 	return err
 }
 
-func (r *Repository) GetByIDWithQuerier(q Querier, id string) (*Upload, error) {
-	row := q.QueryRow(context.Background(), GetQuery, id)
+func (s *Store) GetByIDWithQuerier(q Querier, id string) (*Upload, error) {
+	row := q.QueryRow(context.Background(), getQuery, id)
 
 	var upload Upload
 	var filesJSON []byte

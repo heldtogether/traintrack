@@ -120,7 +120,7 @@ func TestRouter(t *testing.T) {
 				CreateFn: tc.createModelFn,
 				ListFn:   tc.listModelsFn,
 			}
-			handler := NewHandler(mockService)
+			handler := NewHandler(mockService, mockService)
 
 			var bodyReader io.Reader
 			if tc.body != "" {

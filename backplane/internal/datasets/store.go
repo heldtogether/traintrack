@@ -7,9 +7,22 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type Dataset struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name" validate:"required"`
+	Parent      *string `json:"parent"`
+	Version     string  `json:"version" validate:"required"`
+	Description string  `json:"description" validate:"required"`
+
+	UploadIds map[string]string `json:"artefacts"`
+}
+
 const (
-	CreateQuery = `INSERT INTO datasets (name, parent, version, description) VALUES ($1, $2, $3, $4) RETURNING id`
-	ListQuery   = `SELECT 
+	createQuery = `INSERT INTO datasets 
+(name, parent, version, description) 
+VALUES ($1, $2, $3, $4) 
+RETURNING id`
+	listQuery = `SELECT 
   d.id,
   d.name,
   d.parent,
@@ -30,23 +43,27 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-type Repository struct {
-	conn Querier
+type Store struct {
+	q Querier
 }
 
-func NewRepository(conn Querier) *Repository {
-	return &Repository{
-		conn: conn,
+func NewStore(q Querier) *Store {
+	return &Store{
+		q: q,
 	}
 }
 
-func (r *Repository) Create(d *Dataset) (*Dataset, error) {
-	return r.CreateWithQuerier(r.conn, d)
+// Don't export, we only want people using the designated
+// creator struct to ensure that the business logic is followed.
+func (s *Store) create(d *Dataset) (*Dataset, error) {
+	return s.createWithQuerier(s.q, d)
 }
 
-func (r *Repository) CreateWithQuerier(conn Querier, d *Dataset) (*Dataset, error) {
-	query := CreateQuery
-	row := conn.QueryRow(
+// Don't export, we only want people using the designated
+// creator struct to ensure that the business logic is followed.
+func (s *Store) createWithQuerier(q Querier, d *Dataset) (*Dataset, error) {
+	query := createQuery
+	row := q.QueryRow(
 		context.Background(),
 		query,
 		d.Name,
@@ -69,10 +86,13 @@ func (r *Repository) CreateWithQuerier(conn Querier, d *Dataset) (*Dataset, erro
 	}, nil
 }
 
-func (r *Repository) List() ([]*Dataset, error) {
-	rows, err := r.conn.Query(
+/*
+List returns a list of all known Datasets.
+*/
+func (s *Store) List() ([]*Dataset, error) {
+	rows, err := s.q.Query(
 		context.TODO(),
-		ListQuery,
+		listQuery,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not query datasets: %s", err)
