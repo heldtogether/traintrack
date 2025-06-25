@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/heldtogether/traintrack/internal/datasets"
+	"github.com/heldtogether/traintrack/internal/models"
 	"github.com/heldtogether/traintrack/internal/uploads"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,6 +20,7 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 
 	datasetsRepo := datasets.NewRepository(conn)
 	uploadsRepo := uploads.NewRepository(conn)
+	modelsRepo := models.NewRepository(conn)
 
 	fs := &uploads.FileSystemStorage{
 		BaseDir: "./files/",
@@ -31,12 +33,22 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 		DB:           conn,
 	}
 
+	modelsSvc := &models.Service{
+		ModelsRepo:  modelsRepo,
+		UploadsRepo: uploadsRepo,
+		Storage:     fs,
+		DB:          conn,
+	}
+
 	datasetsHandler := datasets.NewHandler(datasetsSvc)
 	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
 
 	uploadsHandler := uploads.NewHandler(uploadsRepo, fs, nil)
 	mux.HandleFunc("/uploads", uploadsHandler.Uploads)
 	mux.HandleFunc("/uploads/{id}/{filename}", uploadsHandler.Upload)
+
+	modelsHandler := models.NewHandler(modelsSvc)
+	mux.HandleFunc("/models", modelsHandler.Models)
 
 	loggedMux := loggingMiddleware(mux)
 	return loggedMux

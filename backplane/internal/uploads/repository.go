@@ -11,7 +11,7 @@ import (
 
 const (
 	CreateQuery = `INSERT INTO uploads (files) VALUES ($1) RETURNING id`
-	UpdateQuery = `UPDATE uploads SET files = $1, dataset_id = $2 WHERE id = $3`
+	UpdateQuery = `UPDATE uploads SET files = $1, dataset_id = $2, model_id = $3 WHERE id = $4`
 	GetQuery    = `SELECT id, files FROM uploads WHERE id = $1`
 )
 
@@ -88,6 +88,7 @@ func (r *Repository) MoveWithQuerier(conn Querier, u *Upload) error {
 		UpdateQuery,
 		filesJSON,
 		u.DatasetID,
+		u.ModelID,
 		u.ID,
 	)
 

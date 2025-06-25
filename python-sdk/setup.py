@@ -8,6 +8,7 @@ setup(
         "requests",
         "pandas",
         "pytest",
+        "joblib"
     ],
 )
 

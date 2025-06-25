@@ -97,7 +97,7 @@ func TestMove(t *testing.T) {
 		Files: map[string]FileRef{
 			"artefact": {Provider: ProviderFileSystem, FileName: "file", Path: "/"},
 		},
-		DatasetID: "d123",
+		DatasetID: pointerTo("d123"),
 	}
 	filesJSON, err := json.Marshal(upload.Files)
 	if err != nil {

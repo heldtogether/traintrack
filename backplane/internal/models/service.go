@@ -1,4 +1,4 @@
-package datasets
+package models
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type DatasetRepo interface {
-	CreateWithQuerier(q Querier, d *Dataset) (*Dataset, error)
-	List() ([]*Dataset, error)
+type ModelRepo interface {
+	CreateWithQuerier(q Querier, m *Model) (*Model, error)
+	List() ([]*Model, error)
 }
 
 type UploadRepo interface {
@@ -34,15 +34,15 @@ type Tx interface {
 }
 
 type Service struct {
-	DatasetsRepo DatasetRepo
-	UploadsRepo  UploadRepo
-	Storage      Storage
-	DB           DB
+	ModelsRepo  ModelRepo
+	UploadsRepo UploadRepo
+	Storage     Storage
+	DB          DB
 }
 
-// Create a new dataset and move any artefacts from temporary storage
+// Create a new model and move any artefacts from temporary storage
 // to a sensible forever home.
-func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err error) {
+func (s *Service) Create(ctx context.Context, m *Model) (created *Model, err error) {
 	tx, err := s.DB.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -53,12 +53,12 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		}
 	}()
 
-	created, err = s.DatasetsRepo.CreateWithQuerier(tx, d)
+	created, err = s.ModelsRepo.CreateWithQuerier(tx, m)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, id := range d.UploadIds {
+	for _, id := range m.UploadIds {
 		upload, err := s.UploadsRepo.GetByIDWithQuerier(tx, id)
 		if err != nil {
 			return nil, fmt.Errorf("get upload %s: %w", id, err)
@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		newFiles := make(map[string]uploads.FileRef, len(upload.Files))
 		for name, file := range upload.Files {
 			origPath := filepath.Join(file.Path, file.FileName)
-			newPath := filepath.Join("datasets", created.ID)
+			newPath := filepath.Join("models", created.ID)
 			if err := s.Storage.MoveFile(origPath, filepath.Join(newPath, file.FileName)); err != nil {
 				return nil, fmt.Errorf("move file %s: %w", file, err)
 			}
@@ -79,7 +79,7 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 		}
 
 		upload.Files = newFiles
-		upload.DatasetID = pointerTo(created.ID)
+		upload.ModelID = pointerTo(created.ID)
 		if err := s.UploadsRepo.MoveWithQuerier(tx, upload); err != nil {
 			return nil, fmt.Errorf("update upload %s: %w", id, err)
 		}
@@ -92,8 +92,8 @@ func (s *Service) Create(ctx context.Context, d *Dataset) (created *Dataset, err
 	return created, nil
 }
 
-func (s *Service) List() ([]*Dataset, error) {
-	return s.DatasetsRepo.List()
+func (s *Service) List() ([]*Model, error) {
+	return s.ModelsRepo.List()
 }
 
 func pointerTo[T any](v T) *T {
