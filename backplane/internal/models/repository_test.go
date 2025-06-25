@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 )
 
 var nilStr *string
+var nilJSONBlob json.RawMessage
 
 func TestList(t *testing.T) {
 	db, err := pgxmock.NewPool()
@@ -18,8 +20,8 @@ func TestList(t *testing.T) {
 	}
 	defer db.Close()
 
-	rows := db.NewRows([]string{"id", "name", "parent", "version", "description"}).
-		AddRow("1", "", nil, "", "")
+	rows := db.NewRows([]string{"id", "name", "parent", "version", "description", "artefacts"}).
+		AddRow("1", "", nil, "", "", map[string]string{})
 
 	db.ExpectQuery(
 		regexp.QuoteMeta(ListQuery),
@@ -108,7 +110,17 @@ func TestCreate(t *testing.T) {
 	db.ExpectQuery(
 		regexp.QuoteMeta(CreateQuery),
 	).
-		WithArgs("name", nilStr, "1.0.0", "description").
+		WithArgs(
+			"name",
+			nilStr,
+			"1.0.0",
+			"description",
+			"",
+			nilJSONBlob,
+			nilJSONBlob,
+			nilJSONBlob,
+			nilJSONBlob,
+		).
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("1"))
 
 	service := NewRepository(db)
@@ -152,7 +164,17 @@ func TestCreateFailOnScan(t *testing.T) {
 	db.ExpectQuery(
 		regexp.QuoteMeta(CreateQuery),
 	).
-		WithArgs("name", nilStr, "1.0.0", "description").
+		WithArgs(
+			"name",
+			nilStr,
+			"1.0.0",
+			"description",
+			"",
+			nilJSONBlob,
+			nilJSONBlob,
+			nilJSONBlob,
+			nilJSONBlob,
+		).
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(unscannable{}))
 
 	service := NewRepository(db)

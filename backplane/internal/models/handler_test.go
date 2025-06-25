@@ -51,7 +51,7 @@ func TestRouter(t *testing.T) {
 				return nil, errors.New("boom")
 			},
 			expectedStatus:   http.StatusInternalServerError,
-			expectedContains: `{"code": 500, "error": "Failed to list models", reason": "boom"}`,
+			expectedContains: `{"code": 500, "error": "Failed to list models", "reason": "boom"}`,
 		},
 		{
 			name:         "POST success",

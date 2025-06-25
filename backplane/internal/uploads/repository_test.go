@@ -12,6 +12,8 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 )
 
+var nilStr *string
+
 func TestCreate(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {
@@ -105,7 +107,7 @@ func TestMove(t *testing.T) {
 	}
 
 	db.ExpectExec(regexp.QuoteMeta(UpdateQuery)).
-		WithArgs(filesJSON, upload.DatasetID, upload.ID).
+		WithArgs(filesJSON, upload.DatasetID, nilStr, upload.ID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRepository(db)
