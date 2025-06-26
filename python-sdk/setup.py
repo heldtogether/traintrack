@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 from pathlib import Path
 
-this_dir = Path(__file__).parent.parent
+this_dir = Path(__file__).resolve().parents[1]
 readme = this_dir / "README.md"
 long_description = readme.read_text() if readme.exists() else ""
 
