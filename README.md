@@ -56,7 +56,8 @@ $ pip install traintrack
 ### Create a dataset
 
 ```python
-from traintrack import list_datasets, Dataset
+from traintrack.datasets import Dataset
+import pandas as pd
 
 # Create a dataset
 data = {
@@ -85,6 +86,9 @@ dataset.save()
 ### Up-version a dataset
 
 ```python
+from traintrack.datasets import list_datasets
+imports pandas as pd
+
 # List all datasets
 datasets = list_datasets()
 dataset = datasets.latest_version("house_prices")
@@ -114,8 +118,9 @@ new_dataset.save()
 ### Train a model
 
 ```python
-# Prepare the functions we need to orchestrate the model training
+from traintrack.models import Model
 
+# Prepare the functions we need to orchestrate the model training
 def setup_model(dataset, config):
     from sklearn.ensemble import RandomForestClassifier
     return RandomForestClassifier(n_estimators=config['n_estimators'])
@@ -161,6 +166,8 @@ model.save()
 ### Fetch a model
 
 ```python
+from traintrack.models import list_models
+
 models = list_models()
 loaded_model = models.latest_version('house_price_regressor')
 eval = eval_model(loaded_model.trained_model, dataset) # same func as above
