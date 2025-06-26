@@ -23,7 +23,7 @@ class InstanceConfig:
         last_fetched_time = (
             datetime.fromisoformat(self.last_fetched.replace("Z", "+00:00"))
             if self.last_fetched
-            else datetime.fromtimestamp(0)
+            else datetime.fromtimestamp(0, tz=timezone.utc)
         )
 
         if datetime.now(timezone.utc) - last_fetched_time >= REFRESH_INTERVAL:
