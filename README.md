@@ -164,7 +164,7 @@ model.save()
 
 ```
 models = list_models()
-loaded_model = models.latest_version('house_prices')
+loaded_model = models.latest_version('house_price_regressor')
 eval = eval_model(loaded_model.trained_model, dataset) # same func as above
 print(eval)
 # {
