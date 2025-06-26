@@ -28,7 +28,9 @@ func init() {
 }
 
 func RunSetBackend(url string) {
-	SaveConfig(DefaultConfigPath, &InstanceConfig{
+	conf := &InstanceConfig{
 		URL: url,
-	})
+	}
+	conf = conf.refreshAuthConfig()
+	SaveConfig(DefaultConfigPath, conf)
 }
