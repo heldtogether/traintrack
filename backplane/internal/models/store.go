@@ -25,6 +25,12 @@ type Model struct {
 	Evaluation  json.RawMessage `json:"evaluation"`
 }
 
+func (m *Model) GetID() string          { return m.ID }
+func (m *Model) GetName() string        { return m.Name }
+func (m *Model) GetDescription() string { return m.Description }
+func (m *Model) GetVersion() string     { return m.Version }
+func (m *Model) GetParent() *string     { return m.Parent }
+
 const (
 	createQuery = `INSERT INTO 
 models (name, parent, version, description, dataset, config, metadata, environment, evaluation) 

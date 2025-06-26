@@ -17,6 +17,12 @@ type Dataset struct {
 	UploadIds map[string]string `json:"artefacts"`
 }
 
+func (m *Dataset) GetID() string          { return m.ID }
+func (m *Dataset) GetName() string        { return m.Name }
+func (m *Dataset) GetDescription() string { return m.Description }
+func (m *Dataset) GetVersion() string     { return m.Version }
+func (m *Dataset) GetParent() *string     { return m.Parent }
+
 const (
 	createQuery = `INSERT INTO datasets 
 (name, parent, version, description) 

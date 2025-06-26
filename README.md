@@ -24,8 +24,8 @@ Traintrack is a modular MLOps platform designed to manage and monitor the full l
 Install the CLI tool:
 
 ```
-brew tap heldtogether/tools
-brew install traintrack
+$ brew tap heldtogether/tools
+$ brew install traintrack
 ```
 
 Configure:
@@ -33,13 +33,13 @@ Configure:
 First, tell it where your instance can be found:
 
 ```
-traintrack set-instance <url>
+$ traintrack set-instance <url>
 ```
 
 Then log in:
 
 ```
-traintrack login
+$ traintrack login
 ```
 
 After adding the config, the SDK will take over and ensure that tokens are refreshed.
@@ -50,7 +50,7 @@ After adding the config, the SDK will take over and ensure that tokens are refre
 Install the library: 
 
 ```
-pip install traintrack
+$ pip install traintrack
 ```
 
 ### Create a dataset
@@ -173,10 +173,43 @@ print(eval)
 # }
 ```
 
-## 📦 Install & Run (Backend)
+## >_ Other Tools
+
+Using the traintrack cli, a number of commands are provided to explore and understand your MLOps.
+
+See a list of available commands:
 
 ```
-traintrack serve
+$ traintrack help
+```
+
+List datasets:
+
+```
+$ traintrack datasets
+
+* 9f9b8055 - house_prices 1.0.0: Raw data
+* 7b755226 - house_prices 1.0.1: Drop NaNs
+|\
+| * cd564c17 - house_prices 2.0.0: Change column: years -> months
+| * 6d302698 - house_prices 2.1.0: Add more rows of same data type
+* 1bbfbdf4 - house_prices 1.1.0: Add classification column
+```
+
+List models:
+
+```
+$ traintrack models
+
+* 58f5849c - house_classifier 0.0.1: initial model
+---                                                                                         
+* 9120834a - house_price_regressor 1.0.0: initial model
+```
+
+## 📦 Run the Backplane (API, data stores, file stores, etc)
+
+```
+$ traintrack serve
 ```
 
 Environment variables:
