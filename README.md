@@ -55,7 +55,7 @@ pip install traintrack
 
 ### Create a dataset
 
-```
+```python
 from traintrack import list_datasets, Dataset
 
 # Create a dataset
@@ -84,7 +84,7 @@ dataset.save()
 
 ### Up-version a dataset
 
-```
+```python
 # List all datasets
 datasets = list_datasets()
 dataset = datasets.latest_version("house_prices")
@@ -113,7 +113,7 @@ new_dataset.save()
 
 ### Train a model
 
-```
+```python
 # Prepare the functions we need to orchestrate the model training
 
 def setup_model(dataset, config):
@@ -162,7 +162,7 @@ model.save()
 
 ### Fetch a model
 
-```
+```python
 models = list_models()
 loaded_model = models.latest_version('house_price_regressor')
 eval = eval_model(loaded_model.trained_model, dataset) # same func as above
