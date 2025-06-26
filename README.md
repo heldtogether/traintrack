@@ -181,7 +181,10 @@ traintrack serve
 
 Environment variables:
 
-`DATABASE_URL` – PostgreSQL connection string
+- `DATABASE_URL` – PostgreSQL connection string
+- `TRAINTRACK_AUTH_NAME` - The `audience` claim for the JWT, typically the API name/url you registered in your OIDC provider.
+- `TRAINTRACK_CLIENT_ID` - The client ID given by your OIDC provider.
+- `TRAINTRACK_AUTH_URL` - The base URL for auth'ing against your OIDC provider.
 
 ## 🧱 Backend Architecture
 

@@ -20,8 +20,10 @@ func VerifyToken(ctx context.Context, rawToken string) (*oidc.IDToken, error) {
 	)
 
 	var verifier = provider.Verifier(&oidc.Config{
-		ClientID:          config.ClientID,
-		SkipClientIDCheck: true,
+		ClientID: config.Name,
+		// ☝️ actually wants audience in this case because authorized party (azp)
+		// is provided by Auth0. go-oidc doesn't seem to support verifying
+		// depending on which claims are returned.
 	})
 
 	if verifier == nil {

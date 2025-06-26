@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -35,6 +36,7 @@ func authMiddleware(next http.Handler) http.Handler {
 		// Parse or validate the token here (JWT or opaque token)
 		userInfo, err := auth.VerifyToken(r.Context(), tokenString)
 		if err != nil {
+			log.Printf("invalid token: %s\n", err.Error())
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(&internal.Error{
 				Code:    http.StatusUnauthorized,
