@@ -1,131 +1,198 @@
-# Traintrack
+# 🚅 Traintrack
 
 Traintrack is a modular MLOps platform designed to manage and monitor the full lifecycle of machine learning workflows — from dataset tracking to deployment — with a robust Go-based backend and an easy-to-use Python SDK.
 
 **Note, this is still very much in active development so nothing is stable. Use at your own risk.**
 
 ## 🚀 Features
-- Modular Backend in Go
-  Built for scale and clarity, Traintrack’s core is structured under a backplane/ directory, separating concerns cleanly.
 
 - Python SDK
   Simplifies dataset management and future ML pipeline interactions. Ideal for data scientists and ML engineers.
 
-- Dataset Tracking (Alpha)
+- Dataset Tracking
   Track versions, metadata, and lineage of datasets across your team or projects.
+
+- Model Tracking
+  Track versions, metadata, and lineage of models across your team or projects. The code used to train the model and details of the environment are stored to ensure reproducability further down the track.
 
 - Designed for Multi-tenant Systems
   Secure and flexible, with SCIM auto-provisioning on the roadmap.
 
 
-## 🧱 Architecture
-- `backplane/` – Core Go services organized by domain
-- `python-sdk/` – Python SDK modules (starting with datasets)
+## 🌍 Set up environment
 
-![Architecture diagram](public/assets/architecture.png)
+Install the CLI tool:
 
-As the backplane can plug in a number of storage providers, the SDK routes all data through the API. To ensure atomicity, there is a two step process for creating a dataset. 
-
-1) Uploads the artefacts (csv, text, binary) to a temporary staging location
-2) Create a dataset and move the artefacts to their forever home.
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant SDK
-    participant API
-    participant Service
-    participant DB
-    participant Storage
-
-    User->>SDK: dataset.save()
-    loop For each artefact
-        SDK->>SDK: Marshal artefact to temp file
-        SDK->>API: POST /uploads (with file)
-        API->>Storage: Store file in staging area
-        Storage-->>API: OK
-        API-->>SDK: Return upload ID
-    end
-
-    SDK->>API: POST /datasets (with upload IDs)
-    API->>Service: Create(dataset)
-
-    Note over Service,DB: Begin atomic transaction
-    Service->>DB: Begin transaction
-    DB-->>Service: Transaction started
-
-    Service->>DB: Create dataset record
-    DB-->>Service: Dataset created
-
-    loop For each upload ID
-        Service->>DB: Get upload by ID
-        DB-->>Service: Upload with file refs
-
-        loop For each file
-            Service->>Storage: MoveFile(origPath -> newPath)
-            Storage-->>Service: OK
-        end
-
-        Service->>DB: Update upload with new paths
-        DB-->>Service: OK
-    end
-
-    Service->>DB: Commit transaction
-    DB-->>Service: OK
-    Note over Service,DB: End atomic transaction
-
-    Service-->>API: Return created dataset
-    API-->>SDK: Return created dataset
-    SDK-->>User: Return new Dataset instance
 ```
+brew tap heldtogether/tools
+brew install traintrack
+```
+
+Configure:
+
+First, tell it where your instance can be found:
+
+```
+traintrack set-instance <url>
+```
+
+Then log in:
+
+```
+traintrack login
+```
+
+After adding the config, the SDK will take over and ensure that tokens are refreshed.
+
 
 ## 🐍 Python SDK Usage
 
-Install: 
+Install the library: 
 
 ```
 pip install traintrack
 ```
 
-Use: 
+### Create a dataset
 
 ```
 from traintrack import list_datasets, Dataset
 
-client = Client(api_key="your-api-key")
+# Create a dataset
+data = {
+    "Bedrooms": [2, 3, 3, 4, 2, None, 4, 3, 5, 2, 4],
+    "Bathrooms": [1, 2, 1, 3, 1, 2, 2, 2, 3, 1, 2],
+    "Sqft": [900, 1500, 1200, 2000, 950, 1200, 1850, 1400, 2500, 1000, 2100],
+    "Age": [30, 15, 20, 5, 40, 15, 10, 12, 4, 35, 8],  # years
+    "Price": [200_000, 340_000, 275_000, 500_000, 210_000, None, 480_000, 320_000, 600_000, 205_000, 520_000],
+}
 
-# Create a new dataset version
-dataset = Dataset(
-    name="customer_churn",
-    description="export from CRM",
-    version="1.0.0",
-)
+df = pd.DataFrame(data)
 
+X = df[["Bedrooms", "Bathrooms", "Sqft", "Age"]]
+y = df[["Price"]]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+dataset = Dataset(None, "house_prices", "1.0.0", "Raw data")
+dataset.set_artefact("input_features_train", X_train)
+dataset.set_artefact("output_train", y_train)
+dataset.set_artefact("input_features_test", X_test)
+dataset.set_artefact("output_test", y_test)
+dataset.save()
+# dataset = <Dataset house_prices:1.0.0> 
+```
+
+### Up-version a dataset
+
+```
 # List all datasets
-datasets = client.datasets.list()
+datasets = list_datasets()
+dataset = datasets.latest_version("house_prices")
+# dataset = <Dataset house_prices:1.0.0> 
 
-# Manipulate the dataset and commit as a new version
-new_dataset = dataset.transform(name="customer_churn", description="drop NaNs", version="1.0.1", lambda ...:...) 
+# Manipulate the dataset and create a new version
+new_dataset = dataset.transform(name="house_prices", description="drop NaNs", version="1.0.1")
+
+X = new_dataset.get_artefact("input_features_train")
+y = new_dataset.get_artefact("output_train")
+
+# Concatenate so we can drop rows with NaNs in either
+combined = pd.concat([X, y], axis=1)
+combined_clean = combined.dropna()
+
+# Split back into X and y
+X_clean = combined_clean[X.columns]
+y_clean = combined_clean[y.columns]
+
+# Save cleaned artefacts back to the dataset
+new_dataset.set_artefact("input_features_train", X_clean)
+new_dataset.set_artefact("output_train", y_clean)
 new_dataset.save()
+# new_dataset = <Dataset house_prices:1.0.1> 
+```
+
+### Train a model
+
+```
+# Prepare the functions we need to orchestrate the model training
+
+def setup_model(dataset, config):
+    from sklearn.ensemble import RandomForestClassifier
+    return RandomForestClassifier(n_estimators=config['n_estimators'])
+
+def train_model(model_obj, dataset):
+    X, y = dataset.artefacts["input_features_train"], dataset.artefacts["output_train"]
+    model_obj.fit(X, y)
+    return model_obj
+
+def eval_model(model_obj, dataset):
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score
+    X = dataset.artefacts["input_features_test"]
+    y_true = dataset.artefacts["output_test"]
+    y_pred = model_obj.predict(X)
+    # print("True values:", y_true)
+    # print("Predicted values:", y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = root_mean_squared_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    return {
+        "mae": mae,
+        "mse": mse,
+        "rmse": rmse,
+        "r2": r2,
+    }
+
+model = Model(None, "house_price_regressor", "1.0.0", "initial model", dataset=dataset, config={'n_estimators': 100})
+
+model.setup(setup_model)
+model.train(train_model)
+model.eval(eval_model)
+print(model.evaluation)
+# {
+#   'mae': 12500.0,
+#   'mse': 212500000.0,
+#   'rmse': 14577.379737113251,
+#   'r2': 0.953360768175583
+# }
+
+model.save()
+# model = <Model house_price_regressor:1.0.0> 
+```
+
+### Fetch a model
+
+```
+models = list_models()
+loaded_model = models.latest_version('house_prices')
+eval = eval_model(loaded_model.trained_model, dataset) # same func as above
+print(eval)
+# {
+#   'mae': 12500.0,
+#   'mse': 212500000.0,
+#   'rmse': 14577.379737113251,
+#   'r2': 0.953360768175583
+# }
 ```
 
 ## 📦 Install & Run (Backend)
 
 ```
-cd backplane/
-go run ./...
+traintrack serve
 ```
 
 Environment variables:
 
-`TRAINTRACK_DB_URL` – PostgreSQL connection string
+`DATABASE_URL` – PostgreSQL connection string
 
-`TRAINTRACK_PORT` – Port to run the API server on
+## 🧱 Backend Architecture
+
+![Architecture diagram](public/assets/architecture.png)
 
 ## 📅 Roadmap
-- [ ] Dataset tracking (Go backend + Python SDK)
+- [x] Dataset tracking (Go backend + Python SDK)
 
-- [ ] Model versioning
+- [x] Model versioning
 
 - [ ] Pipeline tracking and DAG visualization
 
