@@ -8,7 +8,9 @@ setup(
         "requests",
         "pandas",
         "pytest",
-        "joblib"
+        "joblib",
+        "requests_oauthlib",
+        "oauthlib"
     ],
 )
 

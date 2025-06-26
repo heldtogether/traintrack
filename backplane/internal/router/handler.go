@@ -39,16 +39,18 @@ func Setup(conn *pgxpool.Pool) http.Handler {
 		fs,
 		conn,
 	)
-
 	datasetsHandler := datasets.NewHandler(datasetsCreator, datasetsStore)
-	mux.HandleFunc("/datasets", datasetsHandler.Datasets)
+	mux.Handle("/datasets", authMiddleware(http.HandlerFunc(datasetsHandler.Datasets)))
 
 	uploadsHandler := uploads.NewHandler(uploadsStore, fs, nil)
-	mux.HandleFunc("/uploads", uploadsHandler.Uploads)
-	mux.HandleFunc("/uploads/{id}/{filename}", uploadsHandler.Upload)
+	mux.Handle("/uploads", authMiddleware(http.HandlerFunc(uploadsHandler.Uploads)))
+	mux.Handle("/uploads/{id}/{filename}", authMiddleware(http.HandlerFunc(uploadsHandler.Upload)))
 
 	modelsHandler := models.NewHandler(modelsCreator, modelsStore)
-	mux.HandleFunc("/models", modelsHandler.Models)
+	mux.Handle("/models", authMiddleware(http.HandlerFunc(modelsHandler.Models)))
+
+	// mux.HandleFunc("/auth/{provider}/login", auth.HandleLogin)
+	// mux.HandleFunc("/auth/{provider}/callback", auth.HandleCallback)
 
 	loggedMux := loggingMiddleware(mux)
 	return loggedMux

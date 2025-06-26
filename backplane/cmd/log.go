@@ -2,16 +2,19 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/heldtogether/traintrack/internal/auth"
 	"github.com/heldtogether/traintrack/internal/datasets"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +35,7 @@ func RunLog() {
 
 	commits, err := FetchData()
 	if err != nil {
-		fmt.Printf("couldn't fetch data: %s", err)
+		fmt.Printf("couldn't fetch data: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -56,14 +59,36 @@ func stringPtr(s string) *string {
 }
 
 func FetchData() ([]*datasets.Dataset, error) {
-	resp, err := http.Get("http://localhost:8080/datasets")
+	conf, err := LoadConfig(DefaultConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	base, err := url.Parse(conf.URL)
+	if err != nil {
+		log.Fatalf("invalid base URL in config: %s", err)
+	}
+	base.Path = path.Join(base.Path, "datasets")
+	url := base.String()
+
+	token, err := auth.LoadToken(auth.DefaultTokenPath)
+	if err != nil {
+		return nil, err
+	}
+	bearer := "Bearer " + token.AccessToken
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("Authorization", bearer)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("couldn't fetch data")
+		return nil, fmt.Errorf("%d - %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)
