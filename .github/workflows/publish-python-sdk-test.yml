@@ -38,6 +38,9 @@ jobs:
           sed -i -E "s/version=['\"][^'\"]+['\"]/version='${new_version}'/" setup.py
         working-directory: python-sdk
 
+      - name: Copy README.md into SDK dir
+        run: cp README.md python-sdk/
+
       - name: Build package
         run: python -m build
         working-directory: python-sdk
