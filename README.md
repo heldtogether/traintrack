@@ -130,8 +130,6 @@ def eval_model(model_obj, dataset):
     X = dataset.artefacts["input_features_test"]
     y_true = dataset.artefacts["output_test"]
     y_pred = model_obj.predict(X)
-    # print("True values:", y_true)
-    # print("Predicted values:", y_pred)
     mae = mean_absolute_error(y_true, y_pred)
     mse = mean_squared_error(y_true, y_pred)
     rmse = root_mean_squared_error(y_true, y_pred)
