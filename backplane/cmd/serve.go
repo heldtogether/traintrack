@@ -30,8 +30,8 @@ func init() {
 }
 
 func RunServe() error {
-	// Load .env file only if DATABASE_URL is not already set
-	if os.Getenv("DATABASE_URL") == "" {
+	// Load .env file only if TRAINTRACK_DATABASE_URL is not already set
+	if os.Getenv("TRAINTRACK_DATABASE_URL") == "" {
 		err := godotenv.Load()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading .env file: %v\n", err)
@@ -39,7 +39,7 @@ func RunServe() error {
 		}
 	}
 
-	conn, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	conn, err := pgxpool.New(context.Background(), os.Getenv("TRAINTRACK_DATABASE_URL"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -54,7 +54,7 @@ func RunServe() error {
 
 	m, err := migrate.New(
 		path,
-		os.Getenv("DATABASE_URL"),
+		os.Getenv("TRAINTRACK_DATABASE_URL"),
 	)
 	if err != nil {
 		log.Fatalf("could not migrate db: %s", err)
