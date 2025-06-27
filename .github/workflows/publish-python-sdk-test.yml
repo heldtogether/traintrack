@@ -34,7 +34,7 @@ jobs:
       - name: Patch version in setup.py
         run: |
           base_version=$(grep "version=" setup.py | sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
-          new_version="${base_version}.dev0+${{ steps.vars.outputs.sha_short }}"
+          new_version="${base_version}+${{ steps.vars.outputs.sha_short }}"
           sed -i -E "s/version=['\"][^'\"]+['\"]/version='${new_version}'/" setup.py
         working-directory: python-sdk
 
