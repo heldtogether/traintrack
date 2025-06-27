@@ -21,6 +21,7 @@ jobs:
 
       - name: Run tests
         run: go test ./...
+        working-directory: backplane
 
       - name: Set version variable
         id: vars
@@ -44,12 +45,12 @@ jobs:
           # GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}.exe ./cmd/rorsch
           # zip -j dist/${NAME}-${VERSION}-windows-amd64.zip ${NAME}.exe
           # rm ${NAME}.exe
+        working-directory: backplane
 
       - name: Generate checksums
         run: |
-          cd dist
           sha256sum * > checksums.txt
-          cd ..
+        working-directory: backplane/dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -57,8 +58,8 @@ jobs:
           name: Release ${{ env.VERSION }}
           tag_name: ${{ env.VERSION }}
           files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/checksums.txt
+            backplane/dist/*.tar.gz
+            backplane/dist/*.zip
+            backplane/dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
