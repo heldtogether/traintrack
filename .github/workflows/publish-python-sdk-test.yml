@@ -26,17 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
         working-directory: python-sdk
-      
-      - name: Get short SHA
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Patch version in setup.py
-        run: |
-          base_version=$(grep "version=" setup.py | sed -E "s/.*version=['\"]([^'\"]+)['\"].*/\1/")
-          new_version="${base_version}+${{ steps.vars.outputs.sha_short }}"
-          sed -i -E "s/version=['\"][^'\"]+['\"]/version='${new_version}'/" setup.py
-        working-directory: python-sdk
 
       - name: Copy README.md into SDK dir
         run: cp README.md python-sdk/
@@ -50,6 +39,5 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: python-sdk/dist/
-          skip-existing: true
           verbose: true
 
