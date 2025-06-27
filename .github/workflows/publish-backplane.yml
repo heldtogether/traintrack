@@ -1,0 +1,64 @@
+name: Test, Build and Release Backplane
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Set version variable
+        id: vars
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build and package binaries
+        run: |
+          mkdir -p dist
+          NAME="traintrack"
+
+          # Build
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME} ./cmd/rorsch
+          tar -czf dist/${NAME}-${VERSION}-linux-amd64.tar.gz ${NAME}
+          rm ${NAME}
+
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME} ./cmd/rorsch
+          tar -czf dist/${NAME}-${VERSION}-darwin-amd64.tar.gz ${NAME}
+          rm ${NAME}
+
+          # Don't support Windows for now, it has different syscalls
+          # GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}.exe ./cmd/rorsch
+          # zip -j dist/${NAME}-${VERSION}-windows-amd64.zip ${NAME}.exe
+          # rm ${NAME}.exe
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
