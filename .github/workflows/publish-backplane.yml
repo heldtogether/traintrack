@@ -33,16 +33,16 @@ jobs:
           NAME="traintrack"
 
           # Build
-          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME} ./...
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}
           tar -czf dist/${NAME}-${VERSION}-linux-amd64.tar.gz ${NAME}
           rm ${NAME}
 
-          GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME} ./...
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}
           tar -czf dist/${NAME}-${VERSION}-darwin-amd64.tar.gz ${NAME}
           rm ${NAME}
 
           # Don't support Windows for now, it has different syscalls
-          # GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}.exe ./...
+          # GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=${VERSION}" -o ${NAME}.exe
           # zip -j dist/${NAME}-${VERSION}-windows-amd64.zip ${NAME}.exe
           # rm ${NAME}.exe
         working-directory: backplane
