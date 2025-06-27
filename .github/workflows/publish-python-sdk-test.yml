@@ -50,3 +50,6 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: python-sdk/dist/
+          skip-existing: true
+          verbose: true
+
